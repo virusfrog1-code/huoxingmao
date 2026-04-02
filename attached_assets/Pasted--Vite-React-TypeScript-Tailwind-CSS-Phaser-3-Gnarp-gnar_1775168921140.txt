@@ -1,0 +1,58 @@
+请使用 **Vite + React + TypeScript + Tailwind CSS + Phaser 3** 为我**彻底重做并高端升级** Gnarp 官网项目，项目名称 `gnarp-meme-official`（完全覆盖现有文件）。
+
+**核心目标**：让网站变成专业、高端、刺激好玩 + **Pump.fun 公平发射 + 真实经济循环** 的顶级 meme 项目官网。
+
+**Pump.fun 公平发射 Tokenomics（必须在 Token 页清晰展示）**：
+- Total Supply: 1,000,000,000 Gnarp（公平发射，无预挖）
+- 100% 流动性由 Pump.fun 自动创建（锁定）
+- 开发者首批用 3.5 SOL 买入约 1 亿 Gnarp，然后全部注入平台合约作为 P2E 初始奖励资金池（在 Token 页用醒目卡片展示“初始 P2E 池：100,000,000 Gnarp 已注入”）
+- 设置 3% 交易手续费（买卖 + 游戏内购买装备/能量包）：
+  - 1.5% 用于自动回购 Gnarp 并加入流动性池
+  - 1% 用于官方技术升级 + 市场营销
+  - 0.5% 用于社区空投 / 额外奖励
+- 在 Token 页添加 “Buy on Pump.fun” 大按钮 + “3% Fee 分配图表” 可视化说明
+
+**经济循环（必须完整实现，使用 Replit Database 持久化）**：
+- 初始 P2E 奖励池：100,000,000 Gnarp（开发者注入）
+- 玩家玩游戏 → 赚取 Gnarp（实时从奖励池扣除）
+- 玩家可质押 Gnarp 获得 Energy（质押越多每日上限越高）
+- 游戏内购买装备/能量包 时收取 3% 手续费（实时模拟回购 + 营销）
+- 每日免费 5 局 + 额外局数需消耗 Energy 或购买
+- 侧边栏/暂停菜单实时显示：持有 Gnarp、质押量、今日收益、P2E 池剩余量、3% Fee 已回购数量
+
+**UI 要求（必须高端专业）**：
+- 深空黑 + 高级霓虹绿 + 赛博粉紫渐变 + 毛玻璃效果 + 流畅微动画
+- 干净现代排版、卡片悬浮阴影、响应式完美
+- 参考顶级 Solana meme 项目官网（高端、简洁、有科技感）
+
+**小游戏：Super Gnarp（必须大幅提升可玩性和长期刺激感）**：
+- Phaser 3 横版平台跳跃
+- **关卡数量大幅增加**：20 个主线关卡（办公室 → 城市 → 太空 → 月球） + 1 个 Endless Moon 无限模式（随机生成平台 + 越来越难）
+- 主角使用最新逼真 Gnarp 图片切 sprite（idle、run、jump、wave、attack 等动画）
+- 大量 juice 效果：粒子爆炸、屏幕震动、combo 飞字、慢动作、完美落地反馈、音效
+- Power-ups（蘑菇无敌、星星冲刺）、Boss 战（每 5 关一个）、隐藏彩蛋
+- 移动端虚拟摇杆完美支持
+- 每关结束显示本局赚取 Gnarp（扣除 3% 手续费模拟）+ 分享到 X 按钮
+
+**必须包含的页面**：
+1. 首页 Hero（全屏最新 Gnarp 图 + 专业按钮）
+2. Lore
+3. Meme Gallery
+4. 社区
+5. Token Moon 页（Pump.fun 公平发射完整说明 + 3% Fee 分配 + Buy 按钮 + P2E 池状态 + 质押面板）
+6. 小游戏中心（含经济仪表盘 + 装备商店 + Energy 系统）
+
+**技术要求**：
+- React Router + Zustand + Tailwind + @replit/database
+- PWA + 右下角浮动 Gnarp 快捷商店
+- 生成 README.md（含 Pump.fun 发射教程 + 开发者如何注入 1 亿 Gnarp + 如何替换 Gnarp 图片）
+- 生成 .replit 文件
+
+**生成顺序**：
+1. 文件结构 + package.json + 安装依赖
+2. Tailwind + 路由 + 所有页面组件（优先高端 UI + Tokenomics 展示）
+3. 完整 Phaser 游戏（20 关 + Endless + 3% Fee 模拟 + 经济系统）
+4. README.md + .replit
+5. 最后输出 “项目已彻底高端重做完成！已按 Pump.fun 公平发射 + 3.5 SOL 注入 1 亿 P2E 池 + 3% Fee 回购 + 20 关卡设计。请点击 Deploy 一键上线”
+
+现在开始一步步生成，每生成一个重要文件后告诉我文件名，我确认后再继续。
