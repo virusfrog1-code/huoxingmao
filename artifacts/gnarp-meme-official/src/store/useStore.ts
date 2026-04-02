@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 interface MinerUpgrades {
   antenna: number;
-  dance: number;
+  jump: number;
   fan: number;
 }
 
@@ -24,39 +24,25 @@ interface GnarpStore {
   addTokens: (amount: number) => void;
   spendTokens: (amount: number) => boolean;
   addScore: (score: number) => void;
-  upgradeItem: (item: keyof MinerUpgrades) => boolean;
+  buyUpgrade: (item: keyof MinerUpgrades, cost: number) => void;
   calculateOfflineEarnings: () => number;
   setLastOnlineTime: () => void;
   addToLeaderboard: (name: string, score: number, tokens: number) => void;
 }
-
-const UPGRADE_COSTS = {
-  antenna: [100, 300, 1000],
-  dance: [200, 600, 2000],
-  fan: [150, 500, 1500],
-};
-
-const UPGRADE_NAMES = {
-  antenna: "量子天线",
-  dance: "舞步芯片",
-  fan: "粉丝矩阵",
-};
-
-export { UPGRADE_COSTS, UPGRADE_NAMES };
 
 export const useStore = create<GnarpStore>()(
   persist(
     (set, get) => ({
       tokens: 0,
       totalScore: 0,
-      upgrades: { antenna: 0, dance: 0, fan: 0 },
+      upgrades: { antenna: 0, jump: 0, fan: 0 },
       lastOnlineTime: Date.now(),
       leaderboard: [
-        { id: "1", name: "GnarpKing", score: 99999, tokens: 9999, date: "2026-04-01" },
-        { id: "2", name: "外星猫奴", score: 75000, tokens: 7500, date: "2026-04-01" },
-        { id: "3", name: "MoonMiner", score: 60000, tokens: 6000, date: "2026-04-01" },
-        { id: "4", name: "DanceMaster", score: 45000, tokens: 4500, date: "2026-04-02" },
-        { id: "5", name: "GnarpFan", score: 30000, tokens: 3000, date: "2026-04-02" },
+        { id: "1", name: "GnarpKing", score: 18500, tokens: 340, date: "2026-04-01" },
+        { id: "2", name: "外星猫奴", score: 14200, tokens: 280, date: "2026-04-01" },
+        { id: "3", name: "MoonMiner", score: 11800, tokens: 220, date: "2026-04-01" },
+        { id: "4", name: "SuperJumper", score: 9400, tokens: 180, date: "2026-04-02" },
+        { id: "5", name: "GnarpFan", score: 7600, tokens: 140, date: "2026-04-02" },
       ],
 
       addTokens: (amount) =>
@@ -74,26 +60,22 @@ export const useStore = create<GnarpStore>()(
       addScore: (score) =>
         set((state) => ({ totalScore: state.totalScore + score })),
 
-      upgradeItem: (item) => {
+      buyUpgrade: (item, cost) => {
         const state = get();
         const level = state.upgrades[item];
-        const costs = UPGRADE_COSTS[item];
-        if (level >= costs.length) return false;
-        const cost = costs[level];
-        if (state.tokens < cost) return false;
+        if (level >= 3 || state.tokens < cost) return;
         set({
           tokens: state.tokens - cost,
           upgrades: { ...state.upgrades, [item]: level + 1 },
         });
-        return true;
       },
 
       calculateOfflineEarnings: () => {
         const state = get();
         const now = Date.now();
-        const elapsed = (now - state.lastOnlineTime) / 1000 / 60;
-        const fanRate = state.upgrades.fan * 2;
-        const earnings = Math.floor(elapsed * fanRate);
+        const hoursElapsed = (now - state.lastOnlineTime) / 1000 / 3600;
+        const fanRate = state.upgrades.fan * 20;
+        const earnings = Math.floor(hoursElapsed * fanRate);
         if (earnings > 0) {
           set({ tokens: state.tokens + earnings, lastOnlineTime: now });
         }
@@ -117,6 +99,6 @@ export const useStore = create<GnarpStore>()(
         set({ leaderboard: updated });
       },
     }),
-    { name: "gnarp-store" }
+    { name: "gnarp-store-v2" }
   )
 );

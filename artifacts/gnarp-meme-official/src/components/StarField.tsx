@@ -1,24 +1,13 @@
 import { useEffect, useRef } from "react";
 
-interface Star {
-  x: number;
-  y: number;
-  size: number;
-  speed: number;
-  opacity: number;
-  opacityDir: number;
-  color: string;
-}
-
 interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
+  x: number; y: number;
+  vx: number; vy: number;
   size: number;
+  opacity: number; maxOpacity: number;
   color: string;
+  life: number; maxLife: number;
+  type: "star" | "dot";
 }
 
 export default function StarField() {
@@ -31,9 +20,7 @@ export default function StarField() {
     if (!ctx) return;
 
     let animId: number;
-    const stars: Star[] = [];
-    const particles: Particle[] = [];
-    const colors = ["#39ff14", "#bf5fff", "#ff2d78", "#ffffff", "#00ffff"];
+    const stars: Particle[] = [];
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -42,94 +29,88 @@ export default function StarField() {
     resize();
     window.addEventListener("resize", resize);
 
-    for (let i = 0; i < 200; i++) {
+    // Create static stars
+    const starColors = ["#ffffff", "#e0ffe8", "#c8b8ff", "#ffffff", "#ffffff"];
+    for (let i = 0; i < 180; i++) {
       stars.push({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        size: Math.random() * 2 + 0.5,
-        speed: Math.random() * 0.5 + 0.1,
-        opacity: Math.random(),
-        opacityDir: Math.random() > 0.5 ? 1 : -1,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: 0, vy: 0,
+        size: Math.random() * 1.5 + 0.3,
+        opacity: Math.random() * 0.6 + 0.1,
+        maxOpacity: Math.random() * 0.6 + 0.2,
+        color: starColors[Math.floor(Math.random() * starColors.length)],
+        life: Math.random() * 200,
+        maxLife: 200 + Math.random() * 200,
+        type: "star",
       });
     }
 
-    const spawnParticle = () => {
-      const pawColors = ["#39ff14", "#bf5fff", "#ff2d78"];
-      particles.push({
+    // Subtle energy particles
+    for (let i = 0; i < 20; i++) {
+      stars.push({
         x: Math.random() * window.innerWidth,
-        y: window.innerHeight + 10,
-        vx: (Math.random() - 0.5) * 2,
-        vy: -(Math.random() * 2 + 1),
+        y: Math.random() * window.innerHeight,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        size: Math.random() * 2 + 1,
+        opacity: 0,
+        maxOpacity: Math.random() * 0.25 + 0.05,
+        color: Math.random() > 0.5 ? "#00e87a" : "#9b6dff",
         life: 0,
-        maxLife: 120 + Math.random() * 80,
-        size: Math.random() * 8 + 4,
-        color: pawColors[Math.floor(Math.random() * pawColors.length)],
+        maxLife: 300 + Math.random() * 300,
+        type: "dot",
       });
-    };
+    }
 
-    const drawPaw = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string, alpha: number) => {
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.arc(x, y, size, 0, Math.PI * 2);
-      ctx.fill();
-      const padPositions = [
-        { dx: -size * 0.8, dy: -size * 1.1 },
-        { dx: size * 0.8, dy: -size * 1.1 },
-        { dx: -size * 1.3, dy: size * 0.1 },
-        { dx: size * 1.3, dy: size * 0.1 },
-      ];
-      padPositions.forEach(({ dx, dy }) => {
-        ctx.beginPath();
-        ctx.arc(x + dx, y + dy, size * 0.45, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.restore();
-    };
-
-    let frame = 0;
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      for (const star of stars) {
-        star.opacity += star.opacityDir * 0.008;
-        if (star.opacity >= 1 || star.opacity <= 0.1) star.opacityDir *= -1;
+      for (const p of stars) {
+        p.life++;
+        if (p.life > p.maxLife) {
+          p.life = 0;
+          if (p.type === "dot") {
+            p.x = Math.random() * canvas.width;
+            p.y = Math.random() * canvas.height;
+          }
+        }
+
+        const progress = p.life / p.maxLife;
+        const fade = progress < 0.2
+          ? progress / 0.2
+          : progress > 0.8
+          ? (1 - progress) / 0.2
+          : 1;
+
+        p.opacity = p.maxOpacity * fade;
+        p.x += p.vx;
+        p.y += p.vy;
+
         ctx.save();
-        ctx.globalAlpha = star.opacity;
-        ctx.fillStyle = star.color;
-        ctx.shadowColor = star.color;
-        ctx.shadowBlur = 4;
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.globalAlpha = p.opacity;
+
+        if (p.type === "dot") {
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = p.color;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
         ctx.restore();
       }
 
-      if (frame % 30 === 0) spawnParticle();
-
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life++;
-        if (p.life > p.maxLife) {
-          particles.splice(i, 1);
-          continue;
-        }
-        const alpha = 1 - p.life / p.maxLife;
-        drawPaw(ctx, p.x, p.y, p.size, p.color, alpha * 0.6);
-      }
-
-      frame++;
       animId = requestAnimationFrame(draw);
     };
 
     draw();
-
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resize);
@@ -140,7 +121,6 @@ export default function StarField() {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 pointer-events-none z-0"
-      style={{ background: "transparent" }}
     />
   );
 }

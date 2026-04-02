@@ -1,0 +1,61 @@
+请使用 **Vite + React + TypeScript + Tailwind CSS + Phaser 3** 为我**完全重做** Gnarp（外星小猫）Meme 官网项目，项目名称必须是 `gnarp-meme-official`（覆盖现有项目）。
+
+**本次核心要求**（必须严格执行）：
+- **UI 彻底升级为专业、高端、现代风格**：深空黑 + 高级霓虹绿 + 赛博粉紫渐变，干净简洁布局、圆角卡片、优雅动画、玻璃态毛玻璃效果、高级排版。去掉所有“脑rot 丑陋”元素，让网站看起来像高端 meme 项目官网（类似知名 Solana meme 项目）。
+- **游戏彻底改为 Super Mario 风格横版平台跳跃游戏**（不再是节奏舞步游戏），游戏名叫 “Super Gnarp”。
+- 使用用户提供的绿色外星小猫 Gnarp 图片作为主角（请自动在 assets 文件夹创建 placeholder 并注释让我后续替换）。
+
+**网站整体风格**：
+- 专业高端：毛玻璃导航栏、粒子背景但不杂乱、响应式完美、暗黑模式默认
+- 首页 Hero：全屏 Gnarp 站立高清图（使用用户上传的 image.png）+ 渐变标题 “Gnarp Gnarp！外星小猫来地球摸鱼啦～” + 三个大按钮
+- 所有页面必须专业美观
+
+**必须包含的 6 个页面 + 路由**（使用 react-router-dom）：
+1. **首页 Hero**：全屏 Gnarp + 专业按钮（玩 Super Gnarp / 二创投稿 / Gnarp Token）
+2. **Lore 故事页**：干净时间线 + 专业排版
+3. **Meme Gallery**：专业网格 + 点赞下载分享
+4. **社区页**：干净 X feed 嵌入 + 投稿表单
+5. **Token Moon 页**：高端 Token 展示（价格图表占位）+ Buy 按钮
+6. **小游戏中心**（核心页面）
+
+**小游戏：Super Gnarp（超级玛丽风格平台跳跃 + 挖矿）**
+- 使用 Phaser 3 实现完整横版平台跳跃游戏
+- **主角**：绿色毛茸茸外星小猫 Gnarp（站立形象，使用用户提供的 image.png 切成 sprite 动画：idle、run、jump、fall）
+- **玩法**（经典 Super Mario 模式）：
+  - 左右移动 + 跳跃 + 二段跳
+  - 收集漂浮的 Gnarp Token（金币样式）
+  - 躲避/踩死障碍物（键盘、老板头像、咖啡杯等“打工人”主题敌人）
+  - 平台使用霓虹风格 tilemap（简单 2-3 个关卡：办公室 → 太空 → 月球）
+  - 到达终点旗杆时结算本局收集的 Token
+- **挖矿机制**（使用 Replit Database 持久化）：
+  - 收集的 Token 直接计入玩家钱包
+  - 侧边栏 Mining Station：显示持有 Gnarp Token + 实时挖矿速度
+  - 用 Token 购买 3 种升级（商店按钮）：
+    - 天线升级 → 自动每秒产 Token（idle mining）
+    - 跳跃升级 → 增加跳跃高度和速度
+    - 粉丝升级 → 离线也能产 Token
+  - 游戏暂停菜单可随时查看/升级
+- **其他**：得分系统、生命值、音效 placeholder、移动端触摸支持（虚拟摇杆）、“分享到 X” 按钮（带成绩文案）
+
+**技术要求**（必须满足）：
+- React Router v6 + Zustand + Tailwind（专业 UI 组件）
+- Phaser 3 正确嵌入 React（全屏游戏页面）
+- Token / 排行榜 / 离线挖矿 使用 @replit/database 持久化
+- PWA 支持（一键安装）
+- 右下角浮动 Gnarp 猫猫（点击弹出专业弹窗）
+- 全局高级粒子（星星 + 绿色能量，但不杂乱）
+- 所有资源使用占位 + 详细注释（尤其是 Gnarp sprite 和 tilemap，让我后续替换）
+- 项目必须支持 **一键 Static Deployment**
+
+**生成顺序**：
+1. 先创建完整文件结构和 package.json
+2. 安装所有依赖（包括 phaser、@replit/database 等）并更新
+3. 生成所有页面组件、路由、Tailwind 配置（专业 UI 优先）
+4. 生成完整的 Phaser 平台跳跃游戏代码（含 Gnarp 主角、挖矿系统、Replit DB）
+5. 生成 README.md（包含「一键部署教程」和「如何替换 Gnarp 图片」）
+6. 生成 .replit 文件
+7. 最后输出 “项目已完全重做完成！UI 已升级为专业风格，游戏已改为 Super Gnarp 平台跳跃模式。请点击右上角 Deploy 按钮一键上线” 的提示
+
+现在开始一步步为我生成整个项目，每生成一个重要文件后告诉我文件名，我确认后你继续下一个。生成完毕后自动运行 `npm run dev` 预览。
+
+（注意：请优先确保 UI 专业美观，游戏手感接近经典 Super Mario）

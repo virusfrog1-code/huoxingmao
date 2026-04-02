@@ -12,7 +12,7 @@ import GamePage from "./pages/GamePage";
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-      <div className="relative min-h-screen" style={{ background: "#030611" }}>
+      <div className="relative min-h-screen" style={{ background: "#050812" }}>
         <StarField />
         <Navbar />
         <Routes>

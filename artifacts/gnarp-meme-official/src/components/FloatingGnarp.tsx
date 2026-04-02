@@ -1,91 +1,128 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { X, Gamepad2, Coins, Twitter } from "lucide-react";
+import { Link } from "react-router-dom";
 
-const GNARP_PHRASES = [
-  "Gnarp Gnarp！",
-  "外星小猫来啦～",
-  "Meeeeow~",
-  "Gnarp Gnarp Gnarp！",
-  "摸鱼时间到！",
-  "Token 到月球！",
-  "喵呜！",
-  "我来自外太空～",
-  "快来玩我的小游戏！",
-  "Gnarp is love！",
-  "挖矿挖矿！",
-  "Gnarp Gnarp，嘿嘿嘿！",
+const quips = [
+  "Gnarp Gnarp！我刚从月球回来！",
+  "摸鱼效率 +9999%",
+  "嘿，要不要来挖几个 Token？",
+  "外太空网速真的很慢…",
+  "Gnarp Nation 永不止步！",
+  "我踩死了一个键盘 boss！",
+  "Token 正在飞向月球中…",
 ];
 
 export default function FloatingGnarp() {
-  const [phrase, setPhrase] = useState<string | null>(null);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [showPhrase, setShowPhrase] = useState(false);
-  const [frame, setFrame] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [quip] = useState(() => quips[Math.floor(Math.random() * quips.length)]);
+  const [currentQuip, setCurrentQuip] = useState(quip);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFrame((f) => f + 1);
-    }, 300);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setPosition({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
-
-  const handleClick = () => {
-    if (isAnimating) return;
-    setIsAnimating(true);
-    const randomPhrase = GNARP_PHRASES[Math.floor(Math.random() * GNARP_PHRASES.length)];
-    setPhrase(randomPhrase);
-    setShowPhrase(true);
-    setTimeout(() => {
-      setShowPhrase(false);
-      setTimeout(() => setIsAnimating(false), 300);
-    }, 2000);
+  const refresh = () => {
+    setCurrentQuip(quips[Math.floor(Math.random() * quips.length)]);
   };
 
-  const catFrames = ["(=^･ω･^=)", "(=^･ｪ･^=)", "(=^‥^=)", "(=ФωФ=)"];
-  const dancingCat = catFrames[frame % catFrames.length];
-
   return (
-    <div
-      className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2 select-none"
-    >
-      {showPhrase && phrase && (
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+      {open && (
         <div
-          className="animate-bounce-in card-glow rounded-xl px-4 py-2 text-sm font-bold max-w-48 text-center"
-          style={{ color: "#39ff14", animationFillMode: "both" }}
+          className="w-72 rounded-2xl overflow-hidden animate-scale-in"
+          style={{
+            background: "rgba(8, 12, 28, 0.95)",
+            border: "1px solid rgba(0, 232, 122, 0.25)",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 232, 122, 0.08)",
+          }}
         >
-          {phrase}
+          <div
+            className="flex items-center justify-between px-4 py-3"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <div className="flex items-center gap-2">
+              <div
+                className="w-2 h-2 rounded-full animate-bounce-subtle"
+                style={{ background: "#00e87a" }}
+              />
+              <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
+                Gnarp Assistant
+              </span>
+            </div>
+            <button
+              onClick={() => setOpen(false)}
+              className="p-1 rounded-md transition-colors"
+              style={{ color: "rgba(255,255,255,0.4)" }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <div className="p-4">
+            <div
+              className="rounded-xl p-3 mb-4 text-sm"
+              style={{
+                background: "rgba(0, 232, 122, 0.06)",
+                border: "1px solid rgba(0, 232, 122, 0.12)",
+                color: "rgba(255,255,255,0.8)",
+                lineHeight: 1.6,
+              }}
+            >
+              {currentQuip}
+              <button
+                onClick={refresh}
+                className="block mt-2 text-xs"
+                style={{ color: "#00e87a", opacity: 0.7 }}
+              >
+                换一句 ↻
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { icon: <Gamepad2 size={14} />, label: "玩 Super Gnarp", to: "/game", style: "btn-primary" },
+                { icon: <Coins size={14} />, label: "查看 Token", to: "/token", style: "btn-secondary" },
+              ].map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setOpen(false)}
+                  className={`${item.style} flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              ))}
+              <a
+                href="https://twitter.com/Ricedmdq"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-outline flex items-center gap-2 w-full px-3 py-2.5 rounded-xl text-xs"
+              >
+                <Twitter size={14} />
+                关注 @Ricedmdq
+              </a>
+            </div>
+          </div>
         </div>
       )}
+
       <button
-        onClick={handleClick}
-        className={`text-3xl cursor-pointer transition-transform ${isAnimating ? "animate-dance1" : "animate-float"}`}
-        style={{ filter: "drop-shadow(0 0 10px #39ff14)", background: "none", border: "none", padding: 0 }}
-        title="点我！"
+        onClick={() => setOpen(!open)}
+        className="relative group"
+        style={{ background: "none", border: "none", padding: 0 }}
       >
-        <div className="flex flex-col items-center">
+        {!open && (
           <div
-            className="text-2xl font-mono font-bold"
-            style={{
-              color: "#39ff14",
-              textShadow: "0 0 10px #39ff14, 0 0 20px #39ff14",
-            }}
-          >
-            {dancingCat}
-          </div>
-          <div
-            className="text-xs mt-1 font-bold"
-            style={{ color: "#bf5fff" }}
-          >
-            点我！
-          </div>
+            className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-bounce-subtle"
+            style={{ background: "#00e87a", border: "2px solid #050812" }}
+          />
+        )}
+        <div
+          className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all duration-300 ${open ? "scale-95" : "group-hover:scale-105 animate-float"}`}
+          style={{
+            background: "linear-gradient(135deg, rgba(0,232,122,0.2), rgba(155,109,255,0.2))",
+            border: "1px solid rgba(0, 232, 122, 0.35)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(0, 232, 122, 0.15)",
+          }}
+        >
+          🐱
         </div>
       </button>
     </div>
