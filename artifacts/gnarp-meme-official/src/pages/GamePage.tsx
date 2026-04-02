@@ -1,372 +1,373 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createSuperGnarpGame } from "../game/SuperGnarpGame";
-import { useStore } from "../store/useStore";
-import { Zap, TrendingUp, ShoppingBag, Trophy, Twitter, RefreshCw, Info } from "lucide-react";
+import {
+  useStore, UPGRADE_COSTS, UPGRADE_NAMES, UPGRADE_ICONS, UPGRADE_DESCS,
+} from "../store/useStore";
+import type { MinerUpgrades } from "../store/useStore";
+import { Zap, TrendingUp, ShoppingBag, Trophy, RefreshCw, Gamepad2, Clock, Coins } from "lucide-react";
 import type Phaser from "phaser";
 
-const UPGRADES = [
-  {
-    id: "antenna",
-    name: "量子天线",
-    icon: "📡",
-    desc: "每秒自动产出 1 Token",
-    cost: [50, 200, 600],
-    effect: (lvl: number) => `+${lvl} Token/秒`,
-  },
-  {
-    id: "jump",
-    name: "跳跃芯片",
-    icon: "🦘",
-    desc: "增强 Gnarp 跳跃力",
-    cost: [80, 300, 900],
-    effect: (lvl: number) => `跳跃力 +${lvl * 15}%`,
-  },
-  {
-    id: "fan",
-    name: "粉丝矩阵",
-    icon: "👾",
-    desc: "离线时每小时产出 20 Token",
-    cost: [120, 500, 1500],
-    effect: (lvl: number) => `离线 +${lvl * 20}/h`,
-  },
-];
-
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
-  return (
-    <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-      <div style={{ color }} className="mb-1">{icon}</div>
-      <div className="text-base font-black" style={{ color }}>{value}</div>
-      <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{label}</div>
-    </div>
-  );
-}
+type Tab = "mine" | "shop" | "rank";
 
 export default function GamePage() {
-  const gameRef = useRef<Phaser.Game | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const gameRef = useRef<HTMLDivElement>(null);
+  const phaserRef = useRef<Phaser.Game | null>(null);
+
+  const {
+    tokens, upgrades, leaderboard,
+    addTokens, buyUpgrade, addScore, addToLeaderboard,
+    getMiningRatePerHour, getDailyCapTokens, getTodayEarned, calculateOfflineEarnings,
+  } = useStore();
+
+  const [tab, setTab] = useState<Tab>("mine");
   const [score, setScore] = useState(0);
-  const [hp, setHp] = useState(3);
   const [sessionTokens, setSessionTokens] = useState(0);
-  const [gameOverData, setGameOverData] = useState<{ score: number; tokens: number } | null>(null);
-  const [levelComplete, setLevelComplete] = useState<{ level: number; tokens: number } | null>(null);
-  const [tab, setTab] = useState<"mine" | "upgrade" | "board">("mine");
+  const [combo, setCombo] = useState(0);
+  const [hp, setHp] = useState(3);
+  const [gameOver, setGameOver] = useState(false);
+  const [levelWin, setLevelWin] = useState<number | null>(null);
 
-  const { tokens, upgrades, leaderboard, addTokens, buyUpgrade } = useStore();
+  // Token economy
+  const miningRate = getMiningRatePerHour();
+  const dailyCap = getDailyCapTokens();
+  const todayEarned = getTodayEarned();
+  const capPct = Math.min(100, Math.round((todayEarned / dailyCap) * 100));
 
-  const handleTokenCollect = useCallback((_total: number) => {
-    setSessionTokens((prev) => prev + 1);
-    addTokens(1);
-  }, [addTokens]);
+  // Dance bonus
+  const getDanceBonus = useCallback(() => 1 + upgrades.dance * 0.3, [upgrades.dance]);
 
-  const handleScoreUpdate = useCallback((s: number) => setScore(s), []);
-  const handleHpUpdate = useCallback((h: number) => setHp(h), []);
-  const handleLevelComplete = useCallback((level: number, tok: number) => {
-    setLevelComplete({ level, tokens: tok });
-    addTokens(Math.floor(tok * 0.5));
-  }, [addTokens]);
-  const handleGameOver = useCallback((s: number, t: number) => {
-    setGameOverData({ score: s, tokens: t });
+  /* ---- Boot Phaser ---- */
+  useEffect(() => {
+    calculateOfflineEarnings();
+
+    if (!gameRef.current || phaserRef.current) return;
+
+    phaserRef.current = createSuperGnarpGame("gnarp-canvas", {
+      onTokenCollect: (delta, cb) => {
+        addTokens(delta);
+        setSessionTokens((t) => t + delta);
+        setCombo(cb);
+      },
+      onScoreUpdate: (s) => setScore(s),
+      onLevelComplete: (lv, tok) => {
+        setLevelWin(lv);
+        setSessionTokens(tok);
+        setTimeout(() => setLevelWin(null), 2800);
+      },
+      onGameOver: (s, tok) => {
+        addScore(s);
+        setSessionTokens(tok);
+        setGameOver(true);
+      },
+      onHpUpdate: (h) => setHp(h),
+      onComboUpdate: (c) => setCombo(c),
+      getDanceBonus,
+    });
+
+    return () => {
+      phaserRef.current?.destroy(true);
+      phaserRef.current = null;
+    };
   }, []);
 
-  const initGame = useCallback(() => {
-    if (gameRef.current || !containerRef.current) return;
-    gameRef.current = createSuperGnarpGame("super-gnarp-game", {
-      onTokenCollect: handleTokenCollect,
-      onScoreUpdate: handleScoreUpdate,
-      onLevelComplete: handleLevelComplete,
-      onGameOver: handleGameOver,
-      onHpUpdate: handleHpUpdate,
-    });
-  }, [handleTokenCollect, handleScoreUpdate, handleLevelComplete, handleGameOver, handleHpUpdate]);
-
-  useEffect(() => {
-    const t = setTimeout(initGame, 120);
-    return () => {
-      clearTimeout(t);
-      gameRef.current?.destroy(true);
-      gameRef.current = null;
-    };
-  }, []); // eslint-disable-line
-
-  const restart = () => {
-    gameRef.current?.destroy(true);
-    gameRef.current = null;
-    setGameOverData(null);
-    setLevelComplete(null);
+  const restartGame = () => {
+    if (phaserRef.current) {
+      phaserRef.current.destroy(true);
+      phaserRef.current = null;
+    }
+    setGameOver(false);
     setScore(0);
-    setHp(3);
     setSessionTokens(0);
-    setTimeout(initGame, 160);
+    setCombo(0);
+    setHp(3);
+    setTimeout(() => {
+      if (!gameRef.current) return;
+      phaserRef.current = createSuperGnarpGame("gnarp-canvas", {
+        onTokenCollect: (delta, cb) => {
+          addTokens(delta);
+          setSessionTokens((t) => t + delta);
+          setCombo(cb);
+        },
+        onScoreUpdate: (s) => setScore(s),
+        onLevelComplete: (lv, tok) => {
+          setLevelWin(lv);
+          setSessionTokens(tok);
+          setTimeout(() => setLevelWin(null), 2800);
+        },
+        onGameOver: (s, tok) => {
+          addScore(s);
+          setSessionTokens(tok);
+          setGameOver(true);
+          addToLeaderboard("You", s, tok);
+        },
+        onHpUpdate: (h) => setHp(h),
+        onComboUpdate: (c) => setCombo(c),
+        getDanceBonus,
+      });
+    }, 120);
   };
 
-  const shareToX = () => {
-    const text = `我在 Super Gnarp 中获得了 ${score} 分，挖了 ${sessionTokens} 个 Token！🐱⛏️ #SuperGnarp #GnarpToken`;
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+  /* ---- Shop ---- */
+  const handleBuy = (item: keyof MinerUpgrades) => {
+    const level = upgrades[item];
+    if (level >= 5) return;
+    const cost = UPGRADE_COSTS[item][level];
+    buyUpgrade(item, cost);
   };
 
-  const canBuy = (id: string, level: number) => {
-    const up = UPGRADES.find((u) => u.id === id);
-    if (!up || level >= 3) return false;
-    return tokens >= up.cost[level];
+  const UpgradeCard = ({ item }: { item: keyof MinerUpgrades }) => {
+    const level = upgrades[item];
+    const cost = level < 5 ? UPGRADE_COSTS[item][level] : null;
+    const canAfford = cost !== null && tokens >= cost;
+    const maxed = level >= 5;
+    return (
+      <div className={`glass-card p-4 transition-all duration-200 ${!maxed && canAfford ? "border-neon-green/40" : "border-white/8"}`}>
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">{UPGRADE_ICONS[item]}</span>
+            <div>
+              <div className="text-sm font-bold text-white">{UPGRADE_NAMES[item]}</div>
+              <div className="text-xs text-gray-400">{UPGRADE_DESCS[item]}</div>
+            </div>
+          </div>
+        </div>
+        {/* Level dots */}
+        <div className="flex items-center gap-1.5 mb-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className={`h-2 flex-1 rounded-full transition-all ${i < level ? "bg-neon-green shadow-[0_0_6px_#00e87a]" : "bg-white/10"}`}
+            />
+          ))}
+          <span className="text-xs text-gray-400 ml-1">Lv.{level}/5</span>
+        </div>
+        <button
+          onClick={() => handleBuy(item)}
+          disabled={maxed || !canAfford}
+          className={`w-full py-1.5 rounded-lg text-xs font-bold transition-all ${
+            maxed
+              ? "bg-neon-green/20 text-neon-green cursor-default"
+              : canAfford
+              ? "bg-neon-green text-black hover:brightness-110 active:scale-95"
+              : "bg-white/5 text-gray-500 cursor-not-allowed"
+          }`}
+        >
+          {maxed ? "✓ 已满级" : `🪙 ${cost?.toLocaleString()} $GNARP`}
+        </button>
+      </div>
+    );
   };
 
   return (
-    <div className="relative z-10 min-h-screen pt-20">
-      <div className="max-w-screen-xl mx-auto px-4 py-6">
-        {/* Title Row */}
-        <div className="flex items-center gap-3 mb-5">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: "#f5f5f7" }}>
-              Super <span className="gradient-text">Gnarp</span>
-            </h1>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-              横版平台跳跃 · 踩敌人 · 收金币 · 挖 Token · 3 个关卡
-            </p>
-          </div>
-          <div className="ml-auto flex gap-2">
-            <button
-              onClick={restart}
-              className="btn-outline flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs"
-            >
-              <RefreshCw size={13} /> 重开
-            </button>
-            <button
-              onClick={shareToX}
-              className="btn-secondary flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs"
-            >
-              <Twitter size={13} /> 分享
-            </button>
+    <div className="min-h-screen pt-16 bg-[#050812]">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-3 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black">
+            <span className="text-neon-green">Super</span>{" "}
+            <span className="gradient-text">Gnarp</span>
+          </h1>
+          <p className="text-gray-400 text-sm mt-0.5">横版平台跳跃 · 踩敌人 · 收金币 · 挖 Token · 3 个关卡</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={restartGame} className="glass-card px-3 py-2 text-xs text-gray-300 hover:text-white flex items-center gap-1.5">
+            <RefreshCw size={13} /> 重开
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-4 px-4 pb-8">
+        {/* ---- Game Canvas ---- */}
+        <div className="flex-1 min-w-0 relative">
+          <div
+            id="gnarp-canvas"
+            ref={gameRef}
+            className="rounded-xl overflow-hidden border border-neon-green/20 shadow-[0_0_30px_rgba(0,232,122,0.08)] bg-[#050812]"
+            style={{ aspectRatio: "16/9", width: "100%" }}
+          />
+
+          {/* Game Over overlay */}
+          {gameOver && (
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/75 backdrop-blur-md">
+              <div className="text-center px-8 py-8 glass-card max-w-sm">
+                <div className="text-5xl mb-3">😿</div>
+                <h2 className="text-xl font-black text-pink-400 mb-1">Game Over</h2>
+                <div className="text-gray-300 text-sm mb-4 space-y-1">
+                  <div>本局分数 <span className="text-neon-green font-bold">{score.toLocaleString()}</span></div>
+                  <div>收集 Token <span className="text-yellow-400 font-bold">{sessionTokens}</span></div>
+                </div>
+                <button onClick={restartGame} className="btn-primary w-full flex items-center justify-center gap-2">
+                  <RefreshCw size={15} /> 再来一局
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Level Win toast */}
+          {levelWin !== null && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 glass-card px-6 py-3 text-sm font-bold text-neon-green border border-neon-green/40 animate-bounce z-30">
+              🎉 第 {levelWin + 1} 关通关！→ 第 {levelWin + 2} 关
+            </div>
+          )}
+
+          {/* Controls hint bar */}
+          <div className="mt-2 text-center text-xs text-gray-500 space-x-3">
+            <span>← → 移动</span>
+            <span>↑/W/Space 跳跃</span>
+            <span>二段跳：再按跳跃</span>
+            <span>Shift/Z 冲刺</span>
+            <span className="text-pink-400">从头顶踩死敌人</span>
           </div>
         </div>
 
-        <div className="flex flex-col xl:flex-row gap-5">
-          {/* Game Canvas */}
-          <div className="flex-1 min-w-0">
-            <div
-              className="relative rounded-2xl overflow-hidden"
-              style={{
-                background: "#050812",
-                border: "1px solid rgba(0,232,122,0.2)",
-                boxShadow: "0 0 40px rgba(0,232,122,0.05)",
-              }}
-            >
-              {/* Hint */}
-              <div
-                className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs pointer-events-none"
-                style={{ background: "rgba(0,0,0,0.7)", color: "rgba(255,255,255,0.35)", backdropFilter: "blur(8px)" }}
-              >
-                <Info size={11} />
-                ← → 移动 · ↑/W/Space 跳跃 · 二段跳 · 踩敌人头顶消灭
-              </div>
+        {/* ---- Sidebar ---- */}
+        <div className="w-full lg:w-64 xl:w-72 flex flex-col gap-3">
 
-              <div
-                id="super-gnarp-game"
-                ref={containerRef}
-                style={{ width: "100%", minHeight: 300, aspectRatio: "16/9" }}
-              />
-
-              {/* Game Over Overlay */}
-              {gameOverData && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center"
-                  style={{ background: "rgba(5,8,18,0.88)", backdropFilter: "blur(12px)" }}
-                >
-                  <div className="text-center animate-scale-in p-8">
-                    <div className="text-6xl mb-4">😿</div>
-                    <h2 className="text-3xl font-black mb-2" style={{ color: "#ff4fa3" }}>游戏结束</h2>
-                    <div className="space-y-1 text-sm mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
-                      <p>最终分数：<span style={{ color: "#00e87a", fontWeight: 700 }}>{gameOverData.score}</span></p>
-                      <p>本局 Token：<span style={{ color: "#ffd700", fontWeight: 700 }}>{gameOverData.tokens}</span></p>
-                    </div>
-                    <div className="flex gap-3 justify-center flex-wrap">
-                      <button onClick={restart} className="btn-primary px-6 py-3 rounded-xl text-sm flex items-center gap-2">
-                        <RefreshCw size={14} /> 再来一局
-                      </button>
-                      <button onClick={shareToX} className="btn-secondary px-6 py-3 rounded-xl text-sm flex items-center gap-2">
-                        <Twitter size={14} /> 分享成绩
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Level Complete Overlay */}
-              {levelComplete && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center"
-                  style={{ background: "rgba(5,8,18,0.88)", backdropFilter: "blur(12px)" }}
-                >
-                  <div className="text-center animate-scale-in p-8">
-                    <div className="text-6xl mb-4">🎉</div>
-                    <h2 className="text-2xl font-black mb-2" style={{ color: "#00e87a" }}>
-                      {levelComplete.level >= 3 ? "全关通关！🏆 Gnarp 登上月球！" : `第 ${levelComplete.level + 1} 关完成！`}
-                    </h2>
-                    <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      额外奖励：<span style={{ color: "#ffd700", fontWeight: 700 }}>+{Math.floor(levelComplete.tokens * 0.5)} Token</span>
-                    </p>
-                    <button
-                      onClick={() => { setLevelComplete(null); if (levelComplete.level >= 3) restart(); }}
-                      className="btn-primary px-8 py-3 rounded-xl text-sm"
-                    >
-                      {levelComplete.level >= 3 ? "再挑战 🚀" : "继续下一关 →"}
-                    </button>
-                  </div>
-                </div>
-              )}
+          {/* Live stats row */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="glass-card p-3 text-center">
+              <Gamepad2 size={16} className="text-neon-green mx-auto mb-1" />
+              <div className="text-xs text-gray-400">本局分</div>
+              <div className="font-bold text-white text-sm leading-tight">{score.toLocaleString()}</div>
             </div>
-
-            {/* Controls Row */}
-            <div
-              className="mt-4 rounded-xl p-4"
-              style={{ background: "rgba(10,14,30,0.6)", border: "1px solid rgba(255,255,255,0.06)" }}
-            >
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                {[
-                  { k: "← →", d: "左右移动" },
-                  { k: "↑ / W / Space", d: "跳跃" },
-                  { k: "连按 ↑ 两次", d: "二段跳" },
-                  { k: "从头顶踩下", d: "消灭敌人" },
-                ].map((item, i) => (
-                  <div key={i}>
-                    <div className="text-xs font-bold mb-0.5" style={{ color: "#00e87a" }}>{item.k}</div>
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{item.d}</div>
-                  </div>
-                ))}
-              </div>
+            <div className="glass-card p-3 text-center">
+              <span className="text-lg block leading-tight">🪙</span>
+              <div className="text-xs text-gray-400">Token</div>
+              <div className="font-bold text-yellow-400 text-sm leading-tight">{sessionTokens}</div>
+            </div>
+            <div className="glass-card p-3 text-center">
+              <span className="text-lg block leading-tight">
+                {"❤".repeat(Math.max(0, hp))}
+              </span>
+              <div className="text-xs text-gray-400 mt-0.5">生命</div>
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="xl:w-64 space-y-4 flex-shrink-0">
-            {/* Live Stats */}
-            <div className="grid grid-cols-3 gap-2">
-              <StatCard icon={<Zap size={14} />} label="本局分" value={score.toString()} color="#00e87a" />
-              <StatCard icon={<span className="text-sm">💛</span>} label="Token" value={sessionTokens.toString()} color="#ffd700" />
-              <StatCard icon={<span className="text-sm">❤️</span>} label="生命" value={"❤".repeat(Math.max(0, hp))} color="#ff4fa3" />
+          {/* Combo indicator */}
+          {combo >= 2 && (
+            <div className={`glass-card p-2.5 text-center border ${combo >= 6 ? "border-pink-400/50" : "border-yellow-400/30"} animate-pulse`}>
+              <span className={`font-black text-base ${combo >= 6 ? "text-pink-400" : combo >= 4 ? "text-orange-400" : "text-yellow-400"}`}>
+                {combo >= 8 ? "🔥 ULTRA" : combo >= 6 ? "⚡ MEGA" : combo >= 4 ? "💥 SUPER" : "✨"} ×{combo} COMBO
+              </span>
             </div>
+          )}
 
-            {/* Wallet */}
-            <div
-              className="rounded-xl p-4"
-              style={{ background: "rgba(0,232,122,0.06)", border: "1px solid rgba(0,232,122,0.18)" }}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingUp size={14} style={{ color: "#00e87a" }} />
-                <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.6)" }}>钱包总余额</span>
+          {/* Tabs */}
+          <div className="glass-card p-1 flex rounded-xl">
+            {(["mine", "shop", "rank"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${tab === t ? "bg-neon-green text-black" : "text-gray-400 hover:text-white"}`}
+              >
+                {t === "mine" ? "⛏ 矿站" : t === "shop" ? "🛒 升级" : "🏆 排行"}
+              </button>
+            ))}
+          </div>
+
+          {/* ===== MINE TAB ===== */}
+          {tab === "mine" && (
+            <div className="space-y-2.5">
+              {/* Wallet */}
+              <div className="glass-card p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={14} className="text-neon-green" />
+                  <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">钱包总余额</span>
+                </div>
+                <div className="text-2xl font-black text-neon-green">{tokens.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">$GNARP Token</div>
               </div>
-              <div className="text-2xl font-black" style={{ color: "#00e87a" }}>{tokens}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>$GNARP Token</div>
-            </div>
 
-            {/* Tabs */}
-            <div className="flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
-              {[
-                { key: "mine" as const, label: "矿站", icon: <Zap size={12} /> },
-                { key: "upgrade" as const, label: "升级", icon: <ShoppingBag size={12} /> },
-                { key: "board" as const, label: "排行", icon: <Trophy size={12} /> },
-              ].map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-semibold transition-all duration-200"
-                  style={{
-                    background: tab === t.key ? "rgba(0,232,122,0.15)" : "transparent",
-                    color: tab === t.key ? "#00e87a" : "rgba(255,255,255,0.4)",
-                    borderBottom: tab === t.key ? "1px solid #00e87a" : "1px solid transparent",
-                  }}
-                >
-                  {t.icon} {t.label}
+              {/* Mining rate */}
+              <div className="glass-card p-4 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap size={13} className="text-yellow-400" />
+                  <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">挖矿数据</span>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 flex items-center gap-1.5"><Clock size={11} /> 每小时产出</span>
+                    <span className="font-bold text-white">{miningRate.toFixed(1)} <span className="text-neon-green text-xs">Token</span></span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 flex items-center gap-1.5"><Coins size={11} /> 今日已产出</span>
+                    <span className="font-bold text-white">{todayEarned} <span className="text-gray-500 text-xs">/ {dailyCap}</span></span>
+                  </div>
+                </div>
+
+                {/* Daily cap bar */}
+                <div>
+                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>今日产出进度</span><span>{capPct}%</span>
+                  </div>
+                  <div className="h-2 bg-white/8 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${capPct}%`,
+                        background: capPct > 80 ? "#ff4fa3" : "linear-gradient(90deg, #00e87a, #9b6dff)",
+                        boxShadow: `0 0 8px ${capPct > 80 ? "#ff4fa3" : "#00e87a"}`,
+                      }}
+                    />
+                  </div>
+                  {capPct >= 100 && (
+                    <div className="text-xs text-pink-400 mt-1 text-center">今日已达上限 · 明日重置</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Upgrade previews */}
+              <div className="glass-card p-4">
+                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">当前装备加成</div>
+                {(["antenna", "fan", "dance"] as (keyof MinerUpgrades)[]).map((k) => (
+                  <div key={k} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                    <span className="text-xs text-gray-400">{UPGRADE_ICONS[k]} {UPGRADE_NAMES[k]}</span>
+                    <span className={`text-xs font-bold ${upgrades[k] > 0 ? "text-neon-green" : "text-gray-600"}`}>
+                      {upgrades[k] > 0 ? `Lv.${upgrades[k]}` : "未解锁"}
+                    </span>
+                  </div>
+                ))}
+                <button onClick={() => setTab("shop")} className="mt-3 w-full py-1.5 rounded-lg bg-neon-green/10 text-neon-green text-xs font-bold hover:bg-neon-green/20 transition-all flex items-center justify-center gap-1.5">
+                  <ShoppingBag size={12} /> 去升级
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* ===== SHOP TAB ===== */}
+          {tab === "shop" && (
+            <div className="space-y-2.5">
+              <div className="glass-card p-3 flex items-center gap-2">
+                <span className="text-yellow-400 font-black">🪙</span>
+                <span className="text-xs text-gray-400">可用余额：</span>
+                <span className="text-yellow-400 font-bold">{tokens.toLocaleString()} $GNARP</span>
+              </div>
+              <div className="text-xs text-gray-500 px-1">升级后永久生效，玩游戏赚 Token → 买装备 → 提升产出</div>
+              {(["antenna", "fan", "dance"] as (keyof MinerUpgrades)[]).map((item) => (
+                <UpgradeCard key={item} item={item} />
               ))}
             </div>
+          )}
 
-            {/* Tab: Mine */}
-            {tab === "mine" && (
-              <div className="space-y-2">
-                <p className="text-xs px-1" style={{ color: "rgba(255,255,255,0.4)" }}>当前挖矿配置</p>
-                {UPGRADES.map((up) => {
-                  const lvl = upgrades[up.id as keyof typeof upgrades] ?? 0;
-                  return (
-                    <div key={up.id}
-                      className="flex items-center justify-between rounded-xl p-3"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{up.icon}</span>
-                        <div>
-                          <div className="text-xs font-bold" style={{ color: "#f5f5f7" }}>{up.name}</div>
-                          <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                            {lvl > 0 ? up.effect(lvl) : "未解锁"}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-0.5">
-                        {[0, 1, 2].map((i) => (
-                          <div key={i} className="w-2 h-2 rounded-sm" style={{ background: i < lvl ? "#00e87a" : "rgba(255,255,255,0.12)" }} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+          {/* ===== RANK TAB ===== */}
+          {tab === "rank" && (
+            <div className="glass-card p-3 space-y-1.5">
+              <div className="flex items-center gap-2 mb-2">
+                <Trophy size={14} className="text-yellow-400" />
+                <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">今日挖矿王 TOP 20</span>
               </div>
-            )}
-
-            {/* Tab: Upgrade */}
-            {tab === "upgrade" && (
-              <div className="space-y-2">
-                {UPGRADES.map((up) => {
-                  const lvl = upgrades[up.id as keyof typeof upgrades] ?? 0;
-                  const maxed = lvl >= 3;
-                  const cost = maxed ? 0 : up.cost[lvl];
-                  const able = !maxed && canBuy(up.id, lvl);
-
-                  return (
-                    <div key={up.id}
-                      className="rounded-xl p-3"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xl">{up.icon}</span>
-                        <div className="flex-1">
-                          <div className="text-xs font-bold" style={{ color: "#f5f5f7" }}>{up.name} Lv.{lvl}</div>
-                          <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{up.desc}</div>
-                        </div>
-                      </div>
-                      <button
-                        disabled={!able}
-                        onClick={() => buyUpgrade(up.id as any, cost)}
-                        className={`w-full py-2 rounded-lg text-xs font-bold transition-all ${maxed ? "btn-outline opacity-40 cursor-default" : able ? "btn-primary" : "btn-outline opacity-50 cursor-not-allowed"}`}
-                      >
-                        {maxed ? "✓ 满级" : `升级 · ${cost} Token`}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Tab: Leaderboard */}
-            {tab === "board" && (
-              <div className="space-y-1.5">
-                {leaderboard.slice(0, 8).map((entry: any, i: number) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-center gap-2 rounded-xl px-3 py-2"
-                    style={{
-                      background: i === 0 ? "rgba(255,215,0,0.08)" : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${i === 0 ? "rgba(255,215,0,0.2)" : "rgba(255,255,255,0.06)"}`,
-                    }}
-                  >
-                    <span className="text-xs w-5 font-black" style={{ color: i === 0 ? "#ffd700" : i === 1 ? "#c0c0c0" : i === 2 ? "#cd7f32" : "rgba(255,255,255,0.3)" }}>
-                      {i + 1}
-                    </span>
-                    <span className="flex-1 text-xs truncate" style={{ color: "#f5f5f7" }}>{entry.name}</span>
-                    <span className="text-xs font-bold" style={{ color: "#00e87a" }}>{entry.score.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+              {leaderboard.slice(0, 12).map((e, i) => (
+                <div key={e.id} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${i < 3 ? "bg-neon-green/8" : "hover:bg-white/3"}`}>
+                  <span className={`text-xs font-black w-5 text-center ${i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-500"}`}>
+                    {i < 3 ? ["🥇", "🥈", "🥉"][i] : `${i + 1}`}
+                  </span>
+                  <span className="text-xs text-gray-200 flex-1 truncate">{e.name}</span>
+                  <span className="text-xs text-yellow-400 font-bold">{e.tokens}🪙</span>
+                  <span className="text-xs text-neon-green">{e.score.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

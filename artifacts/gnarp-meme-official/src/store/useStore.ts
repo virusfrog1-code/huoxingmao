@@ -1,13 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-interface MinerUpgrades {
+export interface MinerUpgrades {
   antenna: number;
-  jump: number;
   fan: number;
+  dance: number;
 }
 
-interface LeaderboardEntry {
+export interface LeaderboardEntry {
   id: string;
   name: string;
   score: number;
@@ -20,14 +20,56 @@ interface GnarpStore {
   totalScore: number;
   upgrades: MinerUpgrades;
   lastOnlineTime: number;
+  todayEarned: number;
+  todayDate: string;
   leaderboard: LeaderboardEntry[];
+  // actions
   addTokens: (amount: number) => void;
-  spendTokens: (amount: number) => boolean;
-  addScore: (score: number) => void;
   buyUpgrade: (item: keyof MinerUpgrades, cost: number) => void;
+  addScore: (score: number) => void;
   calculateOfflineEarnings: () => number;
-  setLastOnlineTime: () => void;
   addToLeaderboard: (name: string, score: number, tokens: number) => void;
+  // derived helpers
+  getMiningRatePerHour: () => number;
+  getDailyCapTokens: () => number;
+  getTodayEarned: () => number;
+}
+
+/*
+ * Upgrade formula:
+ *   antenna Lv N: +N token/hour auto-mine (1-5, max 5 token/hr)
+ *   fan Lv N: offline multiplier × (1 + N * 0.4) — up to 3x
+ *   dance Lv N: in-game collect bonus × (1 + N * 0.3) — up to 2.5x
+ *
+ * Daily cap = 240 + antenna*40 + fan*30
+ */
+
+export const UPGRADE_COSTS: Record<keyof MinerUpgrades, number[]> = {
+  antenna: [80, 240, 600, 1400, 3000],
+  fan:     [120, 360, 900, 2000, 4200],
+  dance:   [60,  180, 450, 1000, 2200],
+};
+
+export const UPGRADE_NAMES: Record<keyof MinerUpgrades, string> = {
+  antenna: "量子天线",
+  fan: "粉丝矩阵",
+  dance: "舞步芯片",
+};
+
+export const UPGRADE_ICONS: Record<keyof MinerUpgrades, string> = {
+  antenna: "📡",
+  fan: "👾",
+  dance: "🎵",
+};
+
+export const UPGRADE_DESCS: Record<keyof MinerUpgrades, string> = {
+  antenna: "每小时自动产出 Token（最多 5/hr）",
+  fan: "离线收益倍率 × 最高 3×",
+  dance: "游戏中收集奖励翻倍（最高 2.5×）",
+};
+
+function getTodayStr() {
+  return new Date().toISOString().split("T")[0];
 }
 
 export const useStore = create<GnarpStore>()(
@@ -35,63 +77,85 @@ export const useStore = create<GnarpStore>()(
     (set, get) => ({
       tokens: 0,
       totalScore: 0,
-      upgrades: { antenna: 0, jump: 0, fan: 0 },
+      upgrades: { antenna: 0, fan: 0, dance: 0 },
       lastOnlineTime: Date.now(),
+      todayEarned: 0,
+      todayDate: getTodayStr(),
       leaderboard: [
-        { id: "1", name: "GnarpKing", score: 18500, tokens: 340, date: "2026-04-01" },
-        { id: "2", name: "外星猫奴", score: 14200, tokens: 280, date: "2026-04-01" },
-        { id: "3", name: "MoonMiner", score: 11800, tokens: 220, date: "2026-04-01" },
-        { id: "4", name: "SuperJumper", score: 9400, tokens: 180, date: "2026-04-02" },
-        { id: "5", name: "GnarpFan", score: 7600, tokens: 140, date: "2026-04-02" },
+        { id: "1", name: "GnarpKing",  score: 24500, tokens: 820, date: "2026-04-02" },
+        { id: "2", name: "外星猫奴",   score: 18200, tokens: 610, date: "2026-04-02" },
+        { id: "3", name: "MoonMiner",  score: 14800, tokens: 490, date: "2026-04-02" },
+        { id: "4", name: "SuperJumper",score: 11400, tokens: 380, date: "2026-04-02" },
+        { id: "5", name: "GnarpFan",   score: 8900,  tokens: 290, date: "2026-04-02" },
       ],
 
-      addTokens: (amount) =>
-        set((state) => ({ tokens: state.tokens + amount })),
-
-      spendTokens: (amount) => {
+      addTokens: (amount) => {
         const state = get();
-        if (state.tokens >= amount) {
-          set({ tokens: state.tokens - amount });
-          return true;
-        }
-        return false;
+        const today = getTodayStr();
+        const freshDay = today !== state.todayDate;
+        const cap = state.getDailyCapTokens();
+        const todayEarned = freshDay ? 0 : state.todayEarned;
+        const remaining = Math.max(0, cap - todayEarned);
+        const actual = Math.min(amount, remaining);
+        if (actual <= 0) return;
+        set({
+          tokens: state.tokens + actual,
+          todayEarned: todayEarned + actual,
+          todayDate: today,
+        });
       },
-
-      addScore: (score) =>
-        set((state) => ({ totalScore: state.totalScore + score })),
 
       buyUpgrade: (item, cost) => {
         const state = get();
         const level = state.upgrades[item];
-        if (level >= 3 || state.tokens < cost) return;
+        if (level >= 5 || state.tokens < cost) return;
         set({
           tokens: state.tokens - cost,
           upgrades: { ...state.upgrades, [item]: level + 1 },
         });
       },
 
+      addScore: (score) =>
+        set((state) => ({ totalScore: state.totalScore + score })),
+
       calculateOfflineEarnings: () => {
         const state = get();
         const now = Date.now();
-        const hoursElapsed = (now - state.lastOnlineTime) / 1000 / 3600;
-        const fanRate = state.upgrades.fan * 20;
-        const earnings = Math.floor(hoursElapsed * fanRate);
+        const hoursElapsed = Math.min(8, (now - state.lastOnlineTime) / 3600000);
+        const antennaRate = state.upgrades.antenna;
+        const fanMult = 1 + state.upgrades.fan * 0.4;
+        const base = hoursElapsed * antennaRate;
+        const earnings = Math.floor(base * fanMult);
         if (earnings > 0) {
-          set({ tokens: state.tokens + earnings, lastOnlineTime: now });
+          get().addTokens(earnings);
+          set({ lastOnlineTime: now });
         }
         return earnings;
       },
 
-      setLastOnlineTime: () => set({ lastOnlineTime: Date.now() }),
+      getMiningRatePerHour: () => {
+        const { upgrades } = get();
+        const base = upgrades.antenna;
+        const fanBonus = 1 + upgrades.fan * 0.15;
+        return Math.round(base * fanBonus * 10) / 10;
+      },
+
+      getDailyCapTokens: () => {
+        const { upgrades } = get();
+        return 240 + upgrades.antenna * 40 + upgrades.fan * 30;
+      },
+
+      getTodayEarned: () => {
+        const state = get();
+        if (getTodayStr() !== state.todayDate) return 0;
+        return state.todayEarned;
+      },
 
       addToLeaderboard: (name, score, tokens) => {
         const state = get();
         const entry: LeaderboardEntry = {
-          id: Date.now().toString(),
-          name,
-          score,
-          tokens,
-          date: new Date().toISOString().split("T")[0],
+          id: Date.now().toString(), name, score, tokens,
+          date: getTodayStr(),
         };
         const updated = [...state.leaderboard, entry]
           .sort((a, b) => b.score - a.score)
@@ -99,6 +163,6 @@ export const useStore = create<GnarpStore>()(
         set({ leaderboard: updated });
       },
     }),
-    { name: "gnarp-store-v2" }
+    { name: "gnarp-store-v3" }
   )
 );
