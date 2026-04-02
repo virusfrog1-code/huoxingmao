@@ -1,0 +1,26 @@
+{
+  "name": "Gnarp Meme Official",
+  "short_name": "Gnarp",
+  "description": "外星小猫 Gnarp 官方网站 — 节奏挖矿、Meme图库、Gnarp Token",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030611",
+  "theme_color": "#39ff14",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "lang": "zh-CN",
+  "orientation": "portrait-primary"
+}

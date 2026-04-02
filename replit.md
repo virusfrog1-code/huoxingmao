@@ -1,3 +1,36 @@
+# Gnarp Meme Official
+
+## Project Overview
+
+Gnarp 外星小猫 Meme 官方网站 — 节奏挖矿小游戏、Meme 图库、社区、Gnarp Token 页面。
+
+## Key Artifacts
+
+- **gnarp-meme-official** (`artifacts/gnarp-meme-official/`) — Main website at `/`
+  - React 19 + Vite + TypeScript + Tailwind CSS v4
+  - Phaser 3 Dance Miner game
+  - Zustand global state (Token, leaderboard, upgrades)
+  - React Router v6 — 6 pages
+  - PWA (manifest + sw.js)
+  - Deep space theme: neon green (#39ff14) + pink-purple gradient
+
+## Pages
+
+- `/` — Hero with dancing cats canvas animation
+- `/lore` — Gnarp origin timeline
+- `/gallery` — Meme grid with like/download/share to X
+- `/community` — @Ricedmdq X feed + submission form
+- `/token` — Gnarp Token info + price chart (placeholder)
+- `/game` — Phaser 3 Dance Miner with mining station sidebar
+
+## Game Architecture
+
+- `src/game/DanceMinerGame.ts` — Phaser 3 scene: 4-lane rhythm game
+- `src/store/useStore.ts` — Zustand store with persist middleware (tokens, upgrades, leaderboard, offline mining)
+- Upgrade system: antenna (auto-produce), dance (reward multiplier), fan (offline production)
+
+---
+
 # Workspace
 
 ## Overview
