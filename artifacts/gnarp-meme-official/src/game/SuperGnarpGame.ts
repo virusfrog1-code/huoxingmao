@@ -169,6 +169,8 @@ export interface GameCallbacks {
 class BootScene extends Phaser.Scene {
   constructor() { super("Boot"); }
   preload() {
+    // BGM — replace URL with Gnarp theme music later
+    this.load.audio("bgm", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
     // To use real sprite: this.load.spritesheet('gnarp','/assets/gnarp-sprite.png',{frameWidth:96,frameHeight:96});
   }
   create() { this.scene.start("Game", { level: 0, tokens: 0, score: 0, hp: 3, endless: false }); }
@@ -211,6 +213,11 @@ class GameScene extends Phaser.Scene {
   private endlessScrollX = 0;
   private endlessDifficulty = 1;
   private bossSpawned = false;
+
+  // BGM
+  private bgm?: Phaser.Sound.BaseSound;
+  private musicBtn?: Phaser.GameObjects.Text;
+  private static musicMuted = false; // persists across scene restarts
 
   // Graphics
   private gnarpGfx!: Phaser.GameObjects.Graphics;
@@ -289,7 +296,58 @@ class GameScene extends Phaser.Scene {
     this.setupInput();
     this.buildHUD();
     this.buildTouchControls();
+    this.buildMusicPlayer();
     this.cameras.main.startFollow(this.gnarpBox, true, 0.1, 0.1);
+  }
+
+  /* ---- BGM Player ---- */
+  private buildMusicPlayer() {
+    try {
+      // Reuse existing sound across scene restarts
+      const existing = this.sound.get("bgm");
+      this.bgm = existing ?? this.sound.add("bgm", { loop: true, volume: 0.7 });
+      if (!GameScene.musicMuted && !(this.bgm as any).isPlaying) {
+        this.bgm.play();
+      }
+    } catch (e) {
+      console.warn("BGM init failed:", e);
+    }
+
+    // Music toggle button — fixed to camera (top-right corner)
+    const icon = GameScene.musicMuted ? "🔇" : "🎵";
+    this.musicBtn = this.add
+      .text(W - 14, 14, icon, {
+        fontSize: "18px",
+        backgroundColor: "#00000070",
+        padding: { x: 7, y: 5 },
+        color: GameScene.musicMuted ? "#888888" : "#00e87a",
+        fixedWidth: 0,
+      })
+      .setOrigin(1, 0)
+      .setScrollFactor(0)
+      .setDepth(200)
+      .setInteractive({ useHandCursor: true });
+
+    this.musicBtn.on("pointerdown", () => this.toggleMusic());
+    this.musicBtn.on("pointerover", () => this.musicBtn?.setAlpha(0.75));
+    this.musicBtn.on("pointerout",  () => this.musicBtn?.setAlpha(1));
+  }
+
+  private toggleMusic() {
+    GameScene.musicMuted = !GameScene.musicMuted;
+    if (this.bgm) {
+      if (GameScene.musicMuted) {
+        (this.bgm as any).pause?.();
+      } else {
+        if ((this.bgm as any).isPaused) {
+          (this.bgm as any).resume?.();
+        } else {
+          this.bgm.play();
+        }
+      }
+    }
+    this.musicBtn?.setText(GameScene.musicMuted ? "🔇" : "🎵");
+    this.musicBtn?.setColor(GameScene.musicMuted ? "#888888" : "#00e87a");
   }
 
   /* ---- Starfield ---- */
@@ -862,6 +920,7 @@ class GameScene extends Phaser.Scene {
   }
   private onGameOver() {
     this.physics.pause();
+    try { (this.bgm as any)?.pause?.(); } catch (_) {}
     this.cb?.onGameOver(this.score, this.sessionTokens);
     this.scene.pause();
   }
@@ -890,6 +949,7 @@ export function createSuperGnarpGame(
     scene: [BootScene, GameScene],
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { activePointers: 4 },
+    audio: { disableWebAudio: false },
   };
 
   const game = new Phaser.Game(config);

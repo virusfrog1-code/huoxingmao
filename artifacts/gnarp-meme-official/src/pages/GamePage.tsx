@@ -328,12 +328,13 @@ export default function GamePage() {
           )}
 
           {/* Controls hint */}
-          <div className="mt-2 text-center text-xs text-gray-600 space-x-3">
+          <div className="mt-2 text-center text-xs text-gray-600 space-x-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
             <span>← → 移动</span>
             <span>↑/W/Space 跳跃</span>
             <span>再按 二段跳</span>
             <span>Shift/Z 冲刺</span>
-            <span className="text-pink-400/70">从头顶踩死敌人</span>
+            <span className="text-pink-400/60">从头顶踩死敌人</span>
+            <span className="text-neon-green/60 border-l border-white/10 pl-3">🎵 游戏右上角 = 音乐开关</span>
           </div>
         </div>
 
