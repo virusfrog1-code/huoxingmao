@@ -170,7 +170,7 @@ class BootScene extends Phaser.Scene {
   constructor() { super("Boot"); }
   preload() {
     // BGM — replace URL with Gnarp theme music later
-    this.load.audio("bgm", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3");
+    this.load.audio("bgm", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-18.mp3");
     // To use real sprite: this.load.spritesheet('gnarp','/assets/gnarp-sprite.png',{frameWidth:96,frameHeight:96});
   }
   create() { this.scene.start("Game", { level: 0, tokens: 0, score: 0, hp: 3, endless: false }); }

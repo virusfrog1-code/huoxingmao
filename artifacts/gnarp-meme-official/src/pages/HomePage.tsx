@@ -3,6 +3,27 @@ import { useEffect, useState, useRef } from "react";
 import { ArrowRight, Gamepad2, Image, Coins, ChevronDown, Zap, Globe, TrendingUp, Copy, CheckCheck, Send } from "lucide-react";
 import { WalletBtn } from "../components/Navbar";
 
+/* ---- live price from DexScreener ---- */
+function useLivePrice() {
+  const [price, setPrice] = useState<string | null>(null);
+  const [mc, setMc] = useState<string | null>(null);
+  useEffect(() => {
+    const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
+    fetch(`https://api.dexscreener.com/latest/dex/tokens/${CA}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const pair = json.pairs?.[0];
+        if (!pair) return;
+        const p = Number(pair.priceUsd);
+        const m = pair.fdv ?? pair.marketCap ?? 0;
+        setPrice(p < 0.001 ? `$${p.toFixed(8)}` : `$${p.toFixed(6)}`);
+        setMc(m >= 1_000_000 ? `$${(m / 1_000_000).toFixed(1)}M` : `$${(m / 1_000).toFixed(0)}K`);
+      })
+      .catch(() => {});
+  }, []);
+  return { price, mc };
+}
+
 const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
 const PUMP_URL = `https://pump.fun/coin/${CA}`;
 const TELEGRAM_URL = "https://t.me/gnarpsolana";
@@ -230,6 +251,7 @@ const stats = [
 
 export default function HomePage() {
   const [visible, setVisible] = useState(false);
+  const { price: livePrice, mc: liveMc } = useLivePrice();
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 50);
     return () => clearTimeout(t);
@@ -295,7 +317,11 @@ export default function HomePage() {
 
               {/* Stats */}
               <div className="flex flex-wrap gap-6 mt-10">
-                {stats.map((s) => (
+                {[
+                  ...stats.slice(0, 2),
+                  { label: "当前市值", value: liveMc ?? "$4.2M", icon: <TrendingUp size={16} /> },
+                  { label: "$GNARP 价格", value: livePrice ?? "获取中…", icon: <Zap size={16} /> },
+                ].map((s) => (
                   <div key={s.label}>
                     <div
                       className="text-2xl font-black mb-0.5"

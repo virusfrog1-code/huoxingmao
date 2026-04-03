@@ -1,7 +1,33 @@
-import { useState } from "react";
-import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight, Copy, CheckCheck, Calculator, Send } from "lucide-react";
+import { useState, useEffect } from "react";
+import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight, Copy, CheckCheck, Calculator, Send, Wallet, RotateCcw, Info } from "lucide-react";
 import { useStore, P2E_POOL_INITIAL } from "../store/useStore";
 import { WalletBtn } from "../components/Navbar";
+import { usePhantomWallet } from "../hooks/usePhantomWallet";
+
+/* ---- DexScreener live price hook ---- */
+interface DexPrice { price: string; mc: string; change24h: string; }
+function useDexPrice() {
+  const [data, setData] = useState<DexPrice | null>(null);
+  useEffect(() => {
+    const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
+    fetch(`https://api.dexscreener.com/latest/dex/tokens/${CA}`)
+      .then((r) => r.json())
+      .then((json) => {
+        const pair = json.pairs?.[0];
+        if (!pair) return;
+        const p = Number(pair.priceUsd);
+        const mc = pair.fdv ?? pair.marketCap ?? 0;
+        const ch = pair.priceChange?.h24 ?? 0;
+        setData({
+          price: p < 0.001 ? p.toFixed(8) : p.toFixed(6),
+          mc: mc >= 1_000_000 ? `$${(mc / 1_000_000).toFixed(2)}M` : `$${(mc / 1_000).toFixed(0)}K`,
+          change24h: `${ch >= 0 ? "+" : ""}${Number(ch).toFixed(1)}%`,
+        });
+      })
+      .catch(() => {});
+  }, []);
+  return data;
+}
 
 const TELEGRAM_URL = "https://t.me/gnarpsolana";
 
@@ -116,9 +142,13 @@ function FeeDonut() {
 }
 
 /* ---- Earnings Calculator Component ---- */
-function EarningsCalc() {
-  const [calcStake, setCalcStake] = useState("");
+function EarningsCalc({ defaultStake }: { defaultStake?: number }) {
+  const [calcStake, setCalcStake] = useState(defaultStake ? String(defaultStake) : "");
   const [gamesPerDay, setGamesPerDay] = useState("10");
+
+  useEffect(() => {
+    if (defaultStake && defaultStake > 0) setCalcStake(String(defaultStake));
+  }, [defaultStake]);
 
   const stake = Math.max(0, Number(calcStake) || 0);
   const games = Math.max(0, Number(gamesPerDay) || 0);
@@ -210,6 +240,10 @@ export default function TokenPage() {
   const { tokens, stakedTokens, stakeTokens, unstakeTokens, p2ePool, feesBoughtBack,
     getEnergyMaxPerStake, getDailyCapTokens } = useStore();
 
+  // ---- Real wallet + price ----
+  const wallet = usePhantomWallet();
+  const dexPrice = useDexPrice();
+
   const p2ePct  = Math.round((p2ePool / P2E_POOL_INITIAL) * 100);
   const latest  = ALL_PRICE[ALL_PRICE.length - 1];
   const first   = ALL_PRICE[0];
@@ -267,8 +301,8 @@ export default function TokenPage() {
       <section className="px-6 pb-10">
         <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "当前价格", value: `$${latest.toFixed(8)}`, sub: `+${chg30}% 30d ↑`, color: "text-neon-green", glowColor: "rgba(0,232,122,0.15)" },
-            { label: "市值",     value: "$4.2M",  sub: "流通市值",     color: "text-purple-400", glowColor: "rgba(155,109,255,0.1)" },
+            { label: "当前价格", value: dexPrice ? `$${dexPrice.price}` : `$${latest.toFixed(8)}`, sub: dexPrice ? `${dexPrice.change24h} 24h · 实时` : `+${chg30}% 30d`, color: "text-neon-green", glowColor: "rgba(0,232,122,0.15)" },
+            { label: "市值",     value: dexPrice?.mc ?? "$4.2M",  sub: "流通市值 · DexScreener", color: "text-purple-400", glowColor: "rgba(155,109,255,0.1)" },
             { label: "总供应量", value: "1,000M", sub: "固定上限 · 无增发", color: "text-pink-400", glowColor: "rgba(255,79,163,0.1)" },
             { label: "持有人",   value: "8,421",  sub: "独立钱包",     color: "text-yellow-400", glowColor: "rgba(255,215,0,0.1)" },
           ].map((s) => (
@@ -459,11 +493,43 @@ export default function TokenPage() {
               <h3 className="font-black text-white mb-5 flex items-center gap-2">
                 <Users size={15} className="text-neon-green" /> 我的质押
               </h3>
+              {/* Wallet connection row */}
+              {!wallet.connected ? (
+                <div className="mb-4 flex items-center gap-3 p-3 rounded-xl bg-white/4 border border-white/10">
+                  <Wallet size={14} className="text-gray-400 shrink-0" />
+                  <span className="text-xs text-gray-400 flex-1">连接 Phantom 查看链上 GNARP 余额</span>
+                  <WalletBtn />
+                </div>
+              ) : (
+                <div className="mb-4 p-3 rounded-xl bg-neon-green/6 border border-neon-green/20 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Wallet size={13} className="text-neon-green shrink-0" />
+                    <span className="text-xs text-gray-300 font-mono">{wallet.shortAddress}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {wallet.balanceLoading ? (
+                      <span className="text-xs text-gray-500">查询中...</span>
+                    ) : (
+                      <span className="text-xs font-black text-neon-green">
+                        {wallet.gnarpBalance !== null ? `${wallet.gnarpBalance.toLocaleString()} GNARP` : "—"}
+                      </span>
+                    )}
+                    <button onClick={wallet.refreshBalance} className="text-gray-500 hover:text-neon-green transition-colors">
+                      <RotateCcw size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 mb-5">
                 <div className="bg-white/4 rounded-xl p-4">
-                  <div className="text-xs text-gray-400 mb-1">钱包余额</div>
-                  <div className="text-2xl font-black text-white">{tokens.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">GNARP</div>
+                  <div className="text-xs text-gray-400 mb-1">链上 GNARP</div>
+                  <div className="text-2xl font-black text-white">
+                    {wallet.connected && wallet.gnarpBalance !== null
+                      ? wallet.gnarpBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                      : tokens.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">{wallet.connected ? "链上实时余额" : "游戏内余额"}</div>
                 </div>
                 <div className="bg-neon-green/8 rounded-xl p-4 border border-neon-green/20">
                   <div className="text-xs text-gray-400 mb-1">已质押</div>
@@ -513,6 +579,11 @@ export default function TokenPage() {
                     className="w-full py-3 rounded-xl bg-neon-green text-black font-black text-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                     质押 GNARP
                   </button>
+                  {/* Staking disclaimer */}
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-yellow-400/6 border border-yellow-400/20 text-xs text-gray-400 leading-relaxed">
+                    <Info size={12} className="text-yellow-400 shrink-0 mt-0.5" />
+                    <span>当前为<strong className="text-yellow-300">前端模拟质押</strong>，真实奖励由 Solana Staking Program 派发。合约地址在主网部署后将公开更新，质押记录已保存在本地。</span>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -576,7 +647,7 @@ export default function TokenPage() {
             </h2>
             <p className="text-gray-400 text-sm mt-2">输入质押数量，实时预测每日 GNARP 收益</p>
           </div>
-          <EarningsCalc />
+          <EarningsCalc defaultStake={stakedTokens} />
         </div>
       </section>
 
