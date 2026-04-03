@@ -591,12 +591,17 @@ export default function TokenPage() {
                     value={stakeAmt} onChange={(e) => setStakeAmt(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-neon-green/50 transition-colors" />
                   <div className="flex gap-2">
-                    {[25, 50, 100].map((p) => (
-                      <button key={p} onClick={() => setStakeAmt(String(Math.floor(tokens * p / 100)))}
-                        className="flex-1 py-2 rounded-xl bg-white/5 text-xs text-gray-400 hover:text-white hover:bg-white/10 transition-all font-bold">
-                        {p}%
-                      </button>
-                    ))}
+                    {[25, 50, 100].map((p) => {
+                      const avail = wallet.connected && wallet.gnarpBalance != null
+                        ? wallet.gnarpBalance
+                        : tokens;
+                      return (
+                        <button key={p} onClick={() => setStakeAmt(String(Math.floor(avail * p / 100)))}
+                          className="flex-1 py-2 rounded-xl bg-white/5 text-xs text-gray-400 hover:text-white hover:bg-white/10 transition-all font-bold">
+                          {p}%
+                        </button>
+                      );
+                    })}
                   </div>
                   {/* Preview */}
                   {stakePreview > 0 && (
@@ -643,7 +648,7 @@ export default function TokenPage() {
 
                   <button
                     onClick={handleStake}
-                    disabled={stakeTxStatus === "pending" || (!stakeAmt || Number(stakeAmt) <= 0 || Number(stakeAmt) > tokens)}
+                    disabled={stakeTxStatus === "pending" || !stakeAmt || Number(stakeAmt) <= 0}
                     className="w-full py-3 rounded-xl bg-neon-green text-black font-black text-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                     {stakeTxStatus === "pending"
                       ? <><RefreshCcw size={14} className="animate-spin" /> 等待 Phantom 签名...</>
