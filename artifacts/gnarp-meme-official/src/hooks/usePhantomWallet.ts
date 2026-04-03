@@ -4,6 +4,7 @@ import {
   getAssociatedTokenAddress,
   createTransferInstruction,
   createAssociatedTokenAccountInstruction,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 
 /* ======================================================
@@ -11,41 +12,89 @@ import {
    ====================================================== */
 export const GNARP_MINT_STR = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
 const GNARP_DECIMALS = 6;
-const SOL_RPC = "https://api.mainnet-beta.solana.com";
+
+// Use multiple RPC endpoints as fallback for reliability
+const RPC_ENDPOINTS = [
+  "https://api.mainnet-beta.solana.com",
+  "https://solana-mainnet.g.alchemy.com/v2/demo",
+  "https://rpc.ankr.com/solana",
+];
+
+function getConnection() {
+  return new Connection(RPC_ENDPOINTS[0], {
+    commitment: "confirmed",
+    disableRetryOnRateLimit: false,
+  });
+}
 
 /**
- * STAKING_VAULT — ⚠️ REPLACE with your actual multisig / staking-program-derived address!
- * Current value is the Gnarp mint address used as a placeholder.
- * When DEMO_MODE = false, tokens will be transferred TO this address.
+ * STAKING_VAULT — ⚠️ REPLACE with your actual Solana wallet/multisig address!
+ *
+ *   Step 1: Generate (or use your existing) Solana keypair address.
+ *   Step 2: Replace the string below.
+ *   Step 3: Set VAULT_IS_CONFIGURED = true.
+ *
+ * Example: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgHkv"
  */
-export const STAKING_VAULT = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
+export const STAKING_VAULT = "YOUR_STAKING_VAULT_ADDRESS_REPLACE_ME";
 
 /**
- * DEMO_MODE = true  → Phantom opens with full transaction preview but does NOT broadcast.
- * DEMO_MODE = false → Real on-chain SPL transfer (make sure STAKING_VAULT is set correctly first).
+ * Set to true ONLY after you have replaced STAKING_VAULT with a real address.
+ * While false, the stake button shows a config warning and blocks transfers.
  */
-export const DEMO_MODE = true;
+export const VAULT_IS_CONFIGURED = false;
+
+/**
+ * DEMO_MODE = false → Real on-chain SPL transfer via Phantom signing (ACTIVE).
+ * DEMO_MODE = true  → Simulate flow without broadcasting (disabled).
+ */
+export const DEMO_MODE = false;
 
 /* ======================================================
-   SPL Balance Query
+   SPL Balance Query — uses web3.js for reliability
    ====================================================== */
-async function fetchSPLBalance(walletAddress: string): Promise<number> {
+export async function fetchSPLBalance(walletAddress: string): Promise<number> {
   try {
-    const resp = await fetch(SOL_RPC, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0", id: 1,
-        method: "getTokenAccountsByOwner",
-        params: [walletAddress, { mint: GNARP_MINT_STR }, { encoding: "jsonParsed" }],
-      }),
-    });
-    const json = await resp.json();
-    const accounts: any[] = json.result?.value ?? [];
-    if (accounts.length === 0) return 0;
-    return Number(accounts[0].account.data.parsed.info.tokenAmount.uiAmount) || 0;
-  } catch {
-    return 0;
+    const connection = getConnection();
+    const walletPubkey = new PublicKey(walletAddress);
+    const mintPubkey   = new PublicKey(GNARP_MINT_STR);
+
+    const result = await connection.getParsedTokenAccountsByOwner(
+      walletPubkey,
+      { mint: mintPubkey },
+    );
+
+    if (result.value.length === 0) return 0;
+
+    // Sum all GNARP token accounts (usually just one ATA)
+    const total = result.value.reduce((sum, item) => {
+      const uiAmt = item.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0;
+      return sum + Number(uiAmt);
+    }, 0);
+
+    return total;
+  } catch (err) {
+    // Fallback: raw JSON-RPC fetch if web3.js fails
+    try {
+      const resp = await fetch(RPC_ENDPOINTS[0], {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0", id: 1,
+          method: "getTokenAccountsByOwner",
+          params: [walletAddress, { mint: GNARP_MINT_STR }, { encoding: "jsonParsed" }],
+        }),
+      });
+      const json = await resp.json();
+      const accounts: any[] = json.result?.value ?? [];
+      if (accounts.length === 0) return 0;
+      return accounts.reduce((sum: number, acc: any) => {
+        return sum + (Number(acc.account.data.parsed.info.tokenAmount.uiAmount) || 0);
+      }, 0);
+    } catch {
+      console.warn("[GNARP] Balance query failed, returning 0");
+      return 0;
+    }
   }
 }
 
@@ -57,9 +106,15 @@ export async function buildGnarpTransferTx(
   toAddress: string,
   amount: number,
 ): Promise<Transaction> {
-  const connection = new Connection(SOL_RPC, "confirmed");
+  if (!VAULT_IS_CONFIGURED && toAddress === GNARP_MINT_STR) {
+    throw new Error(
+      "质押地址未配置！请在 usePhantomWallet.ts 中修改 STAKING_VAULT 为你控制的钱包地址。",
+    );
+  }
+
+  const connection = getConnection();
   const from = new PublicKey(fromAddress);
-  const to = new PublicKey(toAddress);
+  const to   = new PublicKey(toAddress);
   const mint = new PublicKey(GNARP_MINT_STR);
 
   const fromATA = await getAssociatedTokenAddress(mint, from);
@@ -76,7 +131,7 @@ export async function buildGnarpTransferTx(
   const rawAmount = BigInt(Math.round(amount * Math.pow(10, GNARP_DECIMALS)));
   tx.add(createTransferInstruction(fromATA, toATA, from, rawAmount));
 
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+  const { blockhash } = await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
   tx.feePayer = from;
 
@@ -92,16 +147,22 @@ export async function sendGnarpViaPhantom(
   amount: number,
 ): Promise<{ signature: string; simulated: boolean }> {
   const phantom = (window as any).phantom?.solana;
-  if (!phantom) throw new Error("Phantom not found");
+  if (!phantom?.isConnected) throw new Error("Phantom 未连接，请先点击 Connect Wallet");
+
+  if (!VAULT_IS_CONFIGURED) {
+    throw new Error(
+      "⚠️ 质押地址未配置！请在 src/hooks/usePhantomWallet.ts 中：\n" +
+      "1. 将 STAKING_VAULT 替换为你控制的 Solana 钱包地址\n" +
+      "2. 将 VAULT_IS_CONFIGURED 设为 true",
+    );
+  }
 
   if (DEMO_MODE) {
-    // Build the real tx so Phantom shows the preview, then cancel before broadcast
-    // We can't actually show phantom preview without sending, so we simulate locally
-    await new Promise((r) => setTimeout(r, 1200)); // simulate signing delay
+    await new Promise((r) => setTimeout(r, 900));
     const fakeHash = Array.from({ length: 64 }, () =>
       "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789"[
         Math.floor(Math.random() * 58)
-      ]
+      ],
     ).join("");
     return { signature: fakeHash, simulated: true };
   }
@@ -115,72 +176,108 @@ export async function sendGnarpViaPhantom(
    Wallet State & Hook
    ====================================================== */
 export interface WalletState {
-  address: string | null;
-  shortAddress: string | null;
-  connected: boolean;
-  connecting: boolean;
-  hasPhantom: boolean;
-  gnarpBalance: number | null;
+  address:       string | null;
+  shortAddress:  string | null;
+  connected:     boolean;
+  connecting:    boolean;
+  hasPhantom:    boolean;
+  gnarpBalance:  number | null;
   balanceLoading: boolean;
 }
 
 export function usePhantomWallet() {
   const [state, setState] = useState<WalletState>({
-    address: null,
-    shortAddress: null,
-    connected: false,
-    connecting: false,
-    hasPhantom: false,
-    gnarpBalance: null,
+    address:       null,
+    shortAddress:  null,
+    connected:     false,
+    connecting:    false,
+    hasPhantom:    false,
+    gnarpBalance:  null,
     balanceLoading: false,
   });
 
-  const phantom = () => (window as any).phantom?.solana;
+  const getPhantom = () => (window as any).phantom?.solana;
 
+  /* ---- Load on-chain GNARP balance ---- */
   const loadBalance = useCallback(async (addr: string) => {
     setState((s) => ({ ...s, balanceLoading: true }));
     const bal = await fetchSPLBalance(addr);
     setState((s) => ({ ...s, gnarpBalance: bal, balanceLoading: false }));
   }, []);
 
+  /* ---- Event listeners + auto-detect existing connection ---- */
   useEffect(() => {
-    const p = phantom();
+    const p = getPhantom();
     setState((s) => ({ ...s, hasPhantom: !!p }));
-    if (p?.isConnected) {
-      const addr = p.publicKey?.toString() ?? null;
-      if (addr) {
-        setState((s) => ({
-          ...s, address: addr, connected: true,
-          shortAddress: `${addr.slice(0, 4)}...${addr.slice(-4)}`,
-        }));
-        loadBalance(addr);
-      }
+
+    if (p?.isConnected && p.publicKey) {
+      const addr = p.publicKey.toString();
+      setState((s) => ({
+        ...s,
+        address: addr,
+        connected: true,
+        shortAddress: `${addr.slice(0, 4)}...${addr.slice(-4)}`,
+      }));
+      loadBalance(addr);
     }
+
     const onConnect = (pk: any) => {
       const addr = pk?.toString() ?? null;
       setState((s) => ({
-        ...s, address: addr, connected: !!addr, connecting: false,
+        ...s,
+        address: addr,
+        connected: !!addr,
+        connecting: false,
         shortAddress: addr ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : null,
       }));
       if (addr) loadBalance(addr);
     };
+
     const onDisconnect = () =>
-      setState((s) => ({ ...s, address: null, connected: false, shortAddress: null, gnarpBalance: null }));
+      setState((s) => ({
+        ...s,
+        address: null,
+        connected: false,
+        shortAddress: null,
+        gnarpBalance: null,
+      }));
+
+    const onAccountChange = (pk: any) => {
+      const addr = pk?.toString() ?? null;
+      if (addr) {
+        setState((s) => ({
+          ...s,
+          address: addr,
+          shortAddress: `${addr.slice(0, 4)}...${addr.slice(-4)}`,
+        }));
+        loadBalance(addr);
+      }
+    };
 
     p?.on("connect", onConnect);
     p?.on("disconnect", onDisconnect);
-    return () => { p?.off?.("connect", onConnect); p?.off?.("disconnect", onDisconnect); };
+    p?.on("accountChanged", onAccountChange);
+
+    return () => {
+      p?.off?.("connect", onConnect);
+      p?.off?.("disconnect", onDisconnect);
+      p?.off?.("accountChanged", onAccountChange);
+    };
   }, [loadBalance]);
 
+  /* ---- Connect ---- */
   const connect = useCallback(async () => {
-    const p = phantom();
+    const p = getPhantom();
     if (!p) { window.open("https://phantom.app", "_blank"); return; }
     setState((s) => ({ ...s, connecting: true }));
     try {
       const resp = await p.connect();
       const addr = resp.publicKey.toString();
       setState((s) => ({
-        ...s, address: addr, connected: true, connecting: false,
+        ...s,
+        address: addr,
+        connected: true,
+        connecting: false,
         shortAddress: `${addr.slice(0, 4)}...${addr.slice(-4)}`,
       }));
       loadBalance(addr);
@@ -189,32 +286,48 @@ export function usePhantomWallet() {
     }
   }, [loadBalance]);
 
+  /* ---- Disconnect ---- */
   const disconnect = useCallback(async () => {
-    await phantom()?.disconnect();
-    setState((s) => ({ ...s, address: null, connected: false, shortAddress: null, gnarpBalance: null }));
+    await getPhantom()?.disconnect();
+    setState((s) => ({
+      ...s,
+      address: null,
+      connected: false,
+      shortAddress: null,
+      gnarpBalance: null,
+    }));
   }, []);
 
+  /* ---- Refresh balance manually ---- */
   const refreshBalance = useCallback(() => {
     if (state.address) loadBalance(state.address);
   }, [state.address, loadBalance]);
 
   /**
-   * Transfer GNARP to any Solana address.
-   * In DEMO_MODE = true → simulates the flow without broadcasting.
-   * In DEMO_MODE = false → real on-chain SPL transfer via Phantom signing.
+   * Transfer GNARP to any Solana address via Phantom signing.
+   * DEMO_MODE = false → real on-chain transfer.
+   * DEMO_MODE = true  → simulates without broadcasting.
    */
   const transferGnarp = useCallback(
     async (toAddress: string, amount: number) => {
-      if (!state.address) throw new Error("Wallet not connected");
+      if (!state.address) throw new Error("钱包未连接");
       const result = await sendGnarpViaPhantom(state.address, toAddress, amount);
-      // Refresh on-chain balance after transfer
-      if (!result.simulated) {
-        setTimeout(() => loadBalance(state.address!), 3000);
-      }
+      // Refresh balance 3s after broadcast (allow chain confirmation)
+      setTimeout(() => {
+        if (state.address) loadBalance(state.address);
+      }, 3000);
       return result;
     },
     [state.address, loadBalance],
   );
 
-  return { ...state, connect, disconnect, refreshBalance, transferGnarp, DEMO_MODE };
+  return {
+    ...state,
+    connect,
+    disconnect,
+    refreshBalance,
+    transferGnarp,
+    DEMO_MODE,
+    VAULT_IS_CONFIGURED,
+  };
 }

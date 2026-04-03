@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight, Copy, CheckCheck, Calculator, Send, Wallet, RotateCcw, Info } from "lucide-react";
+import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight, Copy, CheckCheck, Calculator, Send, Wallet, RotateCcw, Info, AlertTriangle } from "lucide-react";
 import { useStore, P2E_POOL_INITIAL } from "../store/useStore";
 import { WalletBtn } from "../components/Navbar";
-import { usePhantomWallet } from "../hooks/usePhantomWallet";
+import { usePhantomWallet, STAKING_VAULT, VAULT_IS_CONFIGURED } from "../hooks/usePhantomWallet";
 
 /* ---- DexScreener live price hook — 30s refresh ---- */
 interface DexPrice { price: string; mc: string; change24h: string; updatedAt: string; }
@@ -257,20 +257,28 @@ export default function TokenPage() {
     const amt = Number(stakeAmt);
     if (!amt || amt <= 0) return;
     if (!wallet.connected) { await wallet.connect(); return; }
+
+    // Guard: vault not yet configured
+    if (!VAULT_IS_CONFIGURED) {
+      setStakeTxStatus("error");
+      setStakeTxMsg("质押地址未配置 — 请在 usePhantomWallet.ts 中设置 STAKING_VAULT 地址，然后将 VAULT_IS_CONFIGURED 改为 true。");
+      return;
+    }
+
     setStakeTxStatus("pending");
     setStakeTxHash(null);
     setStakeTxMsg("正在签名交易，请在 Phantom 中确认...");
     try {
-      const { STAKING_VAULT } = await import("../hooks/usePhantomWallet");
       const result = await wallet.transferGnarp(STAKING_VAULT, amt);
       setStakeTxHash(result.signature);
-      setStakeTxMsg(result.simulated ? "模拟成功！（演示模式，未广播到链上）" : "交易已上链！");
+      setStakeTxMsg(result.simulated ? "模拟成功！（演示模式，未广播到链上）" : "交易已上链！GNARP 已转至质押地址。");
       setStakeTxStatus("success");
       stakeTokens(amt);          // mirror in local store
       setStakeAmt("");
+      wallet.refreshBalance();   // refresh on-chain balance immediately
     } catch (err: any) {
       setStakeTxStatus("error");
-      setStakeTxMsg(err?.message?.slice(0, 80) ?? "交易失败，请重试");
+      setStakeTxMsg(err?.message ?? "交易失败，请重试");
     }
   };
 
@@ -642,13 +650,27 @@ export default function TokenPage() {
                       : "🔐 质押 GNARP"}
                   </button>
 
+                  {/* Vault config warning (shown when STAKING_VAULT not set) */}
+                  {!VAULT_IS_CONFIGURED && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl bg-orange-400/10 border border-orange-400/30 text-xs text-orange-300 leading-relaxed">
+                      <AlertTriangle size={12} className="text-orange-400 shrink-0 mt-0.5" />
+                      <span>
+                        <strong className="text-orange-300">质押地址未配置</strong> — 要开启真实质押，请在{" "}
+                        <code className="font-mono text-orange-200">src/hooks/usePhantomWallet.ts</code>{" "}
+                        中：① 将 <code className="font-mono">STAKING_VAULT</code> 替换为你控制的 Solana 钱包地址；② 将{" "}
+                        <code className="font-mono">VAULT_IS_CONFIGURED</code> 设为 <code className="font-mono">true</code>。
+                      </span>
+                    </div>
+                  )}
                   {/* Staking mode indicator */}
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-yellow-400/6 border border-yellow-400/20 text-xs text-gray-400 leading-relaxed">
-                    <Info size={12} className="text-yellow-400 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-white/4 border border-white/10 text-xs text-gray-400 leading-relaxed">
+                    <Info size={12} className="text-neon-green shrink-0 mt-0.5" />
                     <span>
                       {wallet.DEMO_MODE
-                        ? <><strong className="text-yellow-300">演示模式</strong> — 签名流程完整模拟但不广播到链上。切换真实模式：在 usePhantomWallet.ts 设置 DEMO_MODE=false 并配置 STAKING_VAULT 地址。</>
-                        : <><strong className="text-neon-green">真实模式</strong> — 质押将通过 Phantom 签名并真实转移 GNARP 到质押合约地址。</>}
+                        ? <><strong className="text-yellow-300">演示模式</strong> — 签名流程完整模拟但不广播到链上。</>
+                        : VAULT_IS_CONFIGURED
+                          ? <><strong className="text-neon-green">真实模式 ✓</strong> — 质押通过 Phantom 签名，GNARP 实时链上转账。</>
+                          : <><strong className="text-neon-green">真实模式</strong> — 已关闭演示模式。配置 STAKING_VAULT 后即可真实质押。</>}
                     </span>
                   </div>
                 </div>
@@ -695,9 +717,15 @@ export default function TokenPage() {
                   );
                 })}
               </div>
-              <div className="p-3 rounded-xl bg-yellow-400/8 border border-yellow-400/20 text-xs text-yellow-400 flex items-start gap-2">
-                <span className="text-base">⚠️</span>
-                当前为模拟质押 · 代币上链后将升级为 Solana 链上质押合约，所有数据完全迁移
+              <div className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
+                VAULT_IS_CONFIGURED
+                  ? "bg-neon-green/8 border border-neon-green/20 text-neon-green"
+                  : "bg-yellow-400/8 border border-yellow-400/20 text-yellow-400"
+              }`}>
+                <span className="text-base">{VAULT_IS_CONFIGURED ? "✅" : "⚠️"}</span>
+                {VAULT_IS_CONFIGURED
+                  ? "真实模式已激活 · 质押通过 Phantom 签名链上转账，收益与链上持仓实时联动。"
+                  : "DEMO_MODE 已关闭 · 配置 STAKING_VAULT 地址后即可开启真实链上质押转账。"}
               </div>
             </div>
           </div>
