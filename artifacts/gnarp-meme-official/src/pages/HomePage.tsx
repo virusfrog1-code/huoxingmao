@@ -3,25 +3,33 @@ import { useEffect, useState, useRef } from "react";
 import { ArrowRight, Gamepad2, Image, Coins, ChevronDown, Zap, Globe, TrendingUp, Copy, CheckCheck, Send } from "lucide-react";
 import { WalletBtn } from "../components/Navbar";
 
-/* ---- live price from DexScreener ---- */
+/* ---- live price from DexScreener — refreshes every 30s ---- */
 function useLivePrice() {
   const [price, setPrice] = useState<string | null>(null);
-  const [mc, setMc] = useState<string | null>(null);
+  const [mc, setMc]       = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
   useEffect(() => {
     const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
-    fetch(`https://api.dexscreener.com/latest/dex/tokens/${CA}`)
-      .then((r) => r.json())
-      .then((json) => {
-        const pair = json.pairs?.[0];
-        if (!pair) return;
-        const p = Number(pair.priceUsd);
-        const m = pair.fdv ?? pair.marketCap ?? 0;
-        setPrice(p < 0.001 ? `$${p.toFixed(8)}` : `$${p.toFixed(6)}`);
-        setMc(m >= 1_000_000 ? `$${(m / 1_000_000).toFixed(1)}M` : `$${(m / 1_000).toFixed(0)}K`);
-      })
-      .catch(() => {});
+    const fetchPrice = () => {
+      fetch(`https://api.dexscreener.com/latest/dex/tokens/${CA}`)
+        .then((r) => r.json())
+        .then((json) => {
+          const pair = json.pairs?.[0];
+          if (!pair) return;
+          const p = Number(pair.priceUsd);
+          const m = pair.fdv ?? pair.marketCap ?? 0;
+          setPrice(p < 0.001 ? `$${p.toFixed(8)}` : `$${p.toFixed(6)}`);
+          setMc(m >= 1_000_000 ? `$${(m / 1_000_000).toFixed(1)}M` : `$${(m / 1_000).toFixed(0)}K`);
+          setLastUpdated(new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+        })
+        .catch(() => {});
+    };
+    fetchPrice();
+    const id = setInterval(fetchPrice, 30_000);
+    return () => clearInterval(id);
   }, []);
-  return { price, mc };
+  return { price, mc, lastUpdated };
 }
 
 const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";

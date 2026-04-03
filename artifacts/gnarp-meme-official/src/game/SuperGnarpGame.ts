@@ -303,6 +303,14 @@ class GameScene extends Phaser.Scene {
   /* ---- BGM Player ---- */
   private buildMusicPlayer() {
     try {
+      // Unlock AudioContext on first pointer interaction (browser autoplay policy)
+      const resumeCtx = () => {
+        const ctx: AudioContext | undefined = (this.sound as any).context;
+        if (ctx && ctx.state === "suspended") ctx.resume();
+      };
+      this.input.once("pointerdown", resumeCtx);
+      this.game.events.once("focus", resumeCtx);
+
       // Reuse existing sound across scene restarts
       const existing = this.sound.get("bgm");
       this.bgm = existing ?? this.sound.add("bgm", { loop: true, volume: 0.7 });

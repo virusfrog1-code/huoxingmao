@@ -4,27 +4,32 @@ import { useStore, P2E_POOL_INITIAL } from "../store/useStore";
 import { WalletBtn } from "../components/Navbar";
 import { usePhantomWallet } from "../hooks/usePhantomWallet";
 
-/* ---- DexScreener live price hook ---- */
-interface DexPrice { price: string; mc: string; change24h: string; }
+/* ---- DexScreener live price hook — 30s refresh ---- */
+interface DexPrice { price: string; mc: string; change24h: string; updatedAt: string; }
 function useDexPrice() {
   const [data, setData] = useState<DexPrice | null>(null);
   useEffect(() => {
     const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
-    fetch(`https://api.dexscreener.com/latest/dex/tokens/${CA}`)
-      .then((r) => r.json())
-      .then((json) => {
-        const pair = json.pairs?.[0];
-        if (!pair) return;
-        const p = Number(pair.priceUsd);
-        const mc = pair.fdv ?? pair.marketCap ?? 0;
-        const ch = pair.priceChange?.h24 ?? 0;
-        setData({
-          price: p < 0.001 ? p.toFixed(8) : p.toFixed(6),
-          mc: mc >= 1_000_000 ? `$${(mc / 1_000_000).toFixed(2)}M` : `$${(mc / 1_000).toFixed(0)}K`,
-          change24h: `${ch >= 0 ? "+" : ""}${Number(ch).toFixed(1)}%`,
-        });
-      })
-      .catch(() => {});
+    const fetchPrice = () =>
+      fetch(`https://api.dexscreener.com/latest/dex/tokens/${CA}`)
+        .then((r) => r.json())
+        .then((json) => {
+          const pair = json.pairs?.[0];
+          if (!pair) return;
+          const p  = Number(pair.priceUsd);
+          const mc = pair.fdv ?? pair.marketCap ?? 0;
+          const ch = pair.priceChange?.h24 ?? 0;
+          setData({
+            price:     p < 0.001 ? p.toFixed(8) : p.toFixed(6),
+            mc:        mc >= 1_000_000 ? `$${(mc / 1_000_000).toFixed(2)}M` : `$${(mc / 1_000).toFixed(0)}K`,
+            change24h: `${ch >= 0 ? "+" : ""}${Number(ch).toFixed(1)}%`,
+            updatedAt: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          });
+        })
+        .catch(() => {});
+    fetchPrice();
+    const id = setInterval(fetchPrice, 30_000);
+    return () => clearInterval(id);
   }, []);
   return data;
 }
@@ -237,12 +242,37 @@ export default function TokenPage() {
   const [stakeTab, setStakeTab] = useState<"stake" | "unstake">("stake");
   const [stakeAmt, setStakeAmt] = useState("");
   const [unstakeAmt, setUnstakeAmt] = useState("");
+  const [stakeTxStatus, setStakeTxStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
+  const [stakeTxHash, setStakeTxHash] = useState<string | null>(null);
+  const [stakeTxMsg, setStakeTxMsg] = useState("");
   const { tokens, stakedTokens, stakeTokens, unstakeTokens, p2ePool, feesBoughtBack,
     getEnergyMaxPerStake, getDailyCapTokens } = useStore();
 
   // ---- Real wallet + price ----
   const wallet = usePhantomWallet();
   const dexPrice = useDexPrice();
+
+  // ---- Real stake handler ----
+  const handleStake = async () => {
+    const amt = Number(stakeAmt);
+    if (!amt || amt <= 0) return;
+    if (!wallet.connected) { await wallet.connect(); return; }
+    setStakeTxStatus("pending");
+    setStakeTxHash(null);
+    setStakeTxMsg("正在签名交易，请在 Phantom 中确认...");
+    try {
+      const { STAKING_VAULT } = await import("../hooks/usePhantomWallet");
+      const result = await wallet.transferGnarp(STAKING_VAULT, amt);
+      setStakeTxHash(result.signature);
+      setStakeTxMsg(result.simulated ? "模拟成功！（演示模式，未广播到链上）" : "交易已上链！");
+      setStakeTxStatus("success");
+      stakeTokens(amt);          // mirror in local store
+      setStakeAmt("");
+    } catch (err: any) {
+      setStakeTxStatus("error");
+      setStakeTxMsg(err?.message?.slice(0, 80) ?? "交易失败，请重试");
+    }
+  };
 
   const p2ePct  = Math.round((p2ePool / P2E_POOL_INITIAL) * 100);
   const latest  = ALL_PRICE[ALL_PRICE.length - 1];
@@ -301,8 +331,8 @@ export default function TokenPage() {
       <section className="px-6 pb-10">
         <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "当前价格", value: dexPrice ? `$${dexPrice.price}` : `$${latest.toFixed(8)}`, sub: dexPrice ? `${dexPrice.change24h} 24h · 实时` : `+${chg30}% 30d`, color: "text-neon-green", glowColor: "rgba(0,232,122,0.15)" },
-            { label: "市值",     value: dexPrice?.mc ?? "$4.2M",  sub: "流通市值 · DexScreener", color: "text-purple-400", glowColor: "rgba(155,109,255,0.1)" },
+            { label: "当前价格", value: dexPrice ? `$${dexPrice.price}` : `$${latest.toFixed(8)}`, sub: dexPrice ? `${dexPrice.change24h} · 更新 ${dexPrice.updatedAt}` : `+${chg30}% 30d`, color: "text-neon-green", glowColor: "rgba(0,232,122,0.15)" },
+            { label: "市值",     value: dexPrice?.mc ?? "$4.2M",  sub: "流通市值 · 每30秒刷新", color: "text-purple-400", glowColor: "rgba(155,109,255,0.1)" },
             { label: "总供应量", value: "1,000M", sub: "固定上限 · 无增发", color: "text-pink-400", glowColor: "rgba(255,79,163,0.1)" },
             { label: "持有人",   value: "8,421",  sub: "独立钱包",     color: "text-yellow-400", glowColor: "rgba(255,215,0,0.1)" },
           ].map((s) => (
@@ -574,15 +604,52 @@ export default function TokenPage() {
                       </div>
                     </div>
                   )}
-                  <button onClick={() => { stakeTokens(Number(stakeAmt)); setStakeAmt(""); }}
-                    disabled={!stakeAmt || Number(stakeAmt) <= 0 || Number(stakeAmt) > tokens}
-                    className="w-full py-3 rounded-xl bg-neon-green text-black font-black text-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                    质押 GNARP
+                  {/* Tx status banner */}
+                  {stakeTxStatus === "pending" && (
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-purple-400/10 border border-purple-400/30 text-xs text-purple-300 animate-pulse">
+                      <RefreshCcw size={12} className="animate-spin" /> {stakeTxMsg}
+                    </div>
+                  )}
+                  {stakeTxStatus === "success" && (
+                    <div className="flex flex-col gap-1 p-3 rounded-xl bg-neon-green/10 border border-neon-green/30 text-xs text-neon-green">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        ✅ {stakeTxMsg}
+                      </div>
+                      {stakeTxHash && (
+                        <a
+                          href={`https://solscan.io/tx/${stakeTxHash}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="font-mono text-gray-400 hover:text-neon-green truncate transition-colors">
+                          Tx: {stakeTxHash.slice(0, 20)}...{stakeTxHash.slice(-8)}
+                        </a>
+                      )}
+                      <button onClick={() => setStakeTxStatus("idle")} className="text-gray-500 hover:text-gray-300 text-right underline transition-colors">关闭</button>
+                    </div>
+                  )}
+                  {stakeTxStatus === "error" && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl bg-red-400/10 border border-red-400/30 text-xs text-red-400">
+                      <span>❌ {stakeTxMsg}</span>
+                      <button onClick={() => setStakeTxStatus("idle")} className="ml-auto text-gray-500 underline hover:text-gray-300">关闭</button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleStake}
+                    disabled={stakeTxStatus === "pending" || (!stakeAmt || Number(stakeAmt) <= 0 || Number(stakeAmt) > tokens)}
+                    className="w-full py-3 rounded-xl bg-neon-green text-black font-black text-sm hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    {stakeTxStatus === "pending"
+                      ? <><RefreshCcw size={14} className="animate-spin" /> 等待 Phantom 签名...</>
+                      : "🔐 质押 GNARP"}
                   </button>
-                  {/* Staking disclaimer */}
+
+                  {/* Staking mode indicator */}
                   <div className="flex items-start gap-2 p-3 rounded-xl bg-yellow-400/6 border border-yellow-400/20 text-xs text-gray-400 leading-relaxed">
                     <Info size={12} className="text-yellow-400 shrink-0 mt-0.5" />
-                    <span>当前为<strong className="text-yellow-300">前端模拟质押</strong>，真实奖励由 Solana Staking Program 派发。合约地址在主网部署后将公开更新，质押记录已保存在本地。</span>
+                    <span>
+                      {wallet.DEMO_MODE
+                        ? <><strong className="text-yellow-300">演示模式</strong> — 签名流程完整模拟但不广播到链上。切换真实模式：在 usePhantomWallet.ts 设置 DEMO_MODE=false 并配置 STAKING_VAULT 地址。</>
+                        : <><strong className="text-neon-green">真实模式</strong> — 质押将通过 Phantom 签名并真实转移 GNARP 到质押合约地址。</>}
+                    </span>
                   </div>
                 </div>
               ) : (
