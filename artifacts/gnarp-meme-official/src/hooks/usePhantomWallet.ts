@@ -44,7 +44,7 @@ export const VAULT_IS_CONFIGURED = true;
  * DEMO_MODE = false → Real on-chain SPL transfer via Phantom signing (ACTIVE).
  * DEMO_MODE = true  → Simulate flow without broadcasting (disabled).
  */
-export const DEMO_MODE = false;
+export const DEMO_MODE = true; // 测试模式：完整流程模拟，无需真实 GNARP，上线前改回 false
 
 /* ======================================================
    SPL Balance Query — uses web3.js for reliability
