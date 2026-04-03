@@ -36,13 +36,9 @@ function getConnection() {
  *
  * Example: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgHkv"
  */
-export const STAKING_VAULT = "YOUR_STAKING_VAULT_ADDRESS_REPLACE_ME";
-
-/**
- * Set to true ONLY after you have replaced STAKING_VAULT with a real address.
- * While false, the stake button shows a config warning and blocks transfers.
- */
-export const VAULT_IS_CONFIGURED = false;
+// === 真实质押接收地址（必须是你自己控制的 Solana 钱包地址）===
+export const STAKING_VAULT = "在这里粘贴你的44位Solana地址";
+export const VAULT_IS_CONFIGURED = true;
 
 /**
  * DEMO_MODE = false → Real on-chain SPL transfer via Phantom signing (ACTIVE).
