@@ -1,6 +1,29 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import { ArrowRight, Gamepad2, Image, Coins, ChevronDown, Zap, Globe, TrendingUp } from "lucide-react";
+import { ArrowRight, Gamepad2, Image, Coins, ChevronDown, Zap, Globe, TrendingUp, Copy, CheckCheck, Send } from "lucide-react";
+import { WalletBtn } from "../components/Navbar";
+
+const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
+const PUMP_URL = `https://pump.fun/coin/${CA}`;
+const TELEGRAM_URL = "https://t.me/gnarpsolana";
+
+function CABadge() {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(CA);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="inline-flex items-center gap-2 bg-white/4 border border-white/10 rounded-xl px-4 py-2.5 hover:border-neon-green/30 transition-all cursor-pointer group" onClick={copy}>
+      <span className="text-xs text-gray-500 uppercase tracking-wider font-bold shrink-0">CA</span>
+      <span className="text-xs font-mono text-gray-300 truncate max-w-[180px] sm:max-w-xs">{CA.slice(0, 16)}...{CA.slice(-8)}</span>
+      {copied
+        ? <CheckCheck size={13} className="text-neon-green shrink-0" />
+        : <Copy size={13} className="text-gray-600 group-hover:text-neon-green shrink-0 transition-colors" />}
+    </div>
+  );
+}
 
 function GnarpHeroArt() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -245,6 +268,11 @@ export default function HomePage() {
                 玩平台跳跃游戏、挖 Gnarp Token、加入全球猫奴大军。
               </p>
 
+              {/* CA Badge */}
+              <div className="mb-6">
+                <CABadge />
+              </div>
+
               <div className="flex flex-wrap gap-3">
                 <Link
                   to="/game"
@@ -254,20 +282,15 @@ export default function HomePage() {
                   玩 Super Gnarp
                   <ArrowRight size={14} />
                 </Link>
-                <Link
-                  to="/gallery"
-                  className="btn-secondary flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm"
-                >
-                  <Image size={16} />
-                  Meme 图库
-                </Link>
-                <Link
-                  to="/token"
-                  className="btn-outline flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm"
-                >
-                  <Coins size={16} />
-                  $GNARP Token
-                </Link>
+                <a href={PUMP_URL} target="_blank" rel="noopener noreferrer"
+                  className="btn-secondary flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm no-underline">
+                  🚀 Buy on Pump.fun
+                </a>
+                <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer"
+                  className="btn-secondary flex items-center gap-2 px-5 py-3.5 rounded-xl text-sm no-underline">
+                  <Send size={14} /> TG
+                </a>
+                <WalletBtn />
               </div>
 
               {/* Stats */}

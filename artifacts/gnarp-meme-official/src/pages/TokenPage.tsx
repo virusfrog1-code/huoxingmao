@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight, Copy, CheckCheck } from "lucide-react";
+import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight, Copy, CheckCheck, Calculator, Send } from "lucide-react";
 import { useStore, P2E_POOL_INITIAL } from "../store/useStore";
+import { WalletBtn } from "../components/Navbar";
+
+const TELEGRAM_URL = "https://t.me/gnarpsolana";
 
 const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
 const PUMP_URL = `https://pump.fun/coin/${CA}`;
@@ -107,6 +110,93 @@ function FeeDonut() {
           </div>
         ))}
         <p className="text-xs text-gray-500 pt-1">每笔交易（买入/卖出/游戏内购）收取 3% 手续费，自动链上分配</p>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Earnings Calculator Component ---- */
+function EarningsCalc() {
+  const [calcStake, setCalcStake] = useState("");
+  const [gamesPerDay, setGamesPerDay] = useState("10");
+
+  const stake = Math.max(0, Number(calcStake) || 0);
+  const games = Math.max(0, Number(gamesPerDay) || 0);
+
+  // Formula from economy model
+  const stakeBonus = Math.floor(stake / 1000) * 0.3;          // +30% per 1000 staked
+  const basePerGame = 50 * 0.0001 * 10000;                    // ~50 avg score tokens
+  const boostedPerGame = basePerGame * (1 + stakeBonus);       // with stake bonus
+  const grossDaily = boostedPerGame * games;                   // raw daily
+  const feeDeducted = grossDaily * 0.03;                      // 3% fee
+  const netDaily = grossDaily - feeDeducted;                  // after fee
+  const dailyCap = Math.min(5000, stake * 0.05 || 240);       // cap formula
+  const actualDaily = Math.min(netDaily, dailyCap);            // capped
+  const energyMax = Math.min(500, 100 + Math.floor(stake / 1000) * 20);
+  const offlineEarnings = actualDaily * (8 / 24);             // 8h offline
+
+  const rows = [
+    { label: "基础每局奖励", value: `${basePerGame.toFixed(1)} GNARP`, color: "text-gray-300" },
+    { label: `质押加成 (+${(stakeBonus * 100).toFixed(0)}%)`, value: `${boostedPerGame.toFixed(1)} GNARP/局`, color: "text-neon-green" },
+    { label: `每日产出（${games}局）`, value: `${grossDaily.toFixed(0)} GNARP`, color: "text-white" },
+    { label: "3% 手续费（回购注池）", value: `-${feeDeducted.toFixed(1)} GNARP`, color: "text-pink-400" },
+    { label: "每日净收益（扣费后）", value: `${netDaily.toFixed(0)} GNARP`, color: "text-yellow-400" },
+    { label: "每日上限（质押量×0.05）", value: `${dailyCap.toFixed(0)} GNARP`, color: "text-purple-400" },
+    { label: "🏆 实际每日收益", value: `${actualDaily.toFixed(0)} GNARP`, color: "text-neon-green font-black text-base" },
+    { label: "Energy 上限", value: `${energyMax}`, color: "text-purple-300" },
+    { label: "8h 离线收益", value: `${offlineEarnings.toFixed(0)} GNARP`, color: "text-gray-300" },
+  ];
+
+  return (
+    <div className="glass-card p-6 md:p-8 max-w-3xl mx-auto">
+      <div className="flex items-center gap-2 mb-6">
+        <Calculator size={16} className="text-neon-green" />
+        <span className="font-black text-white">收益计算器</span>
+        <span className="text-xs text-gray-500">· 所有数值基于游戏内公式实时计算</span>
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-4 mb-6">
+        <div>
+          <label className="text-xs text-gray-400 block mb-1.5">质押数量 (GNARP)</label>
+          <input type="number" placeholder="如：10000"
+            value={calcStake} onChange={(e) => setCalcStake(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none focus:border-neon-green/50 transition-colors" />
+          <div className="flex gap-2 mt-2">
+            {[1000, 5000, 10000, 50000].map((v) => (
+              <button key={v} onClick={() => setCalcStake(String(v))}
+                className="flex-1 py-1.5 rounded-lg bg-white/5 text-xs text-gray-400 hover:text-white hover:bg-white/10 transition-all font-bold">
+                {v >= 1000 ? `${v / 1000}K` : v}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1.5">每日游戏局数</label>
+          <input type="number" placeholder="如：10" min="1" max="100"
+            value={gamesPerDay} onChange={(e) => setGamesPerDay(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 outline-none focus:border-neon-green/50 transition-colors" />
+          <div className="flex gap-2 mt-2">
+            {[5, 10, 20, 50].map((v) => (
+              <button key={v} onClick={() => setGamesPerDay(String(v))}
+                className="flex-1 py-1.5 rounded-lg bg-white/5 text-xs text-gray-400 hover:text-white hover:bg-white/10 transition-all font-bold">
+                {v}局
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {rows.map((r) => (
+          <div key={r.label} className={`flex justify-between items-center py-2.5 px-4 rounded-xl ${r.label.includes("🏆") ? "bg-neon-green/8 border border-neon-green/20" : "bg-white/3"}`}>
+            <span className="text-sm text-gray-400">{r.label}</span>
+            <span className={`font-bold text-sm ${r.color}`}>{r.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 p-3 rounded-xl bg-white/3 border border-white/8 text-xs text-gray-500 leading-relaxed">
+        公式：每局基础奖励 = 得分 × 0.0001 · 质押每 1,000 GNARP +30% 加成 · 每日上限 = 质押量 × 5%（最高 5,000/天） · 3% 手续费自动回购注池
       </div>
     </div>
   );
@@ -476,6 +566,20 @@ export default function TokenPage() {
         </div>
       </section>
 
+      {/* ====== EARNINGS CALCULATOR ====== */}
+      <section className="px-6 pb-10">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <p className="text-xs uppercase tracking-widest text-neon-green mb-3 font-bold">CALCULATOR</p>
+            <h2 className="text-3xl font-black text-white">
+              收益 <span className="gradient-text">计算器</span>
+            </h2>
+            <p className="text-gray-400 text-sm mt-2">输入质押数量，实时预测每日 GNARP 收益</p>
+          </div>
+          <EarningsCalc />
+        </div>
+      </section>
+
       {/* ====== CTA ====== */}
       <section className="px-6 pb-16">
         <div className="max-w-6xl mx-auto">
@@ -487,15 +591,16 @@ export default function TokenPage() {
             <div className="relative z-10">
               <h3 className="text-3xl font-black gradient-text mb-3">准备好了吗？</h3>
               <p className="text-gray-400 mb-8">加入外星猫奴大军，一起把 $GNARP 送上月球 🌙</p>
-              <div className="flex justify-center gap-4 flex-wrap">
+              <div className="flex justify-center gap-3 flex-wrap">
                 <a href={PUMP_URL} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-neon-green text-black font-black text-base px-10 py-4 rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-[0_0_30px_rgba(0,232,122,0.3)]">
-                  🚀 立即购买 on Pump.fun <RefreshCcw size={15} />
+                  className="inline-flex items-center gap-2 bg-neon-green text-black font-black text-base px-8 py-4 rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-[0_0_30px_rgba(0,232,122,0.3)]">
+                  🚀 Buy on Pump.fun <RefreshCcw size={15} />
                 </a>
-                <a href="https://x.com" target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 border border-white/20 text-white font-bold text-base px-8 py-4 rounded-2xl hover:bg-white/5 transition-all">
-                  𝕏 关注官方推特
+                <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold text-base px-8 py-4 rounded-2xl hover:bg-blue-500/30 active:scale-95 transition-all">
+                  <Send size={16} /> 加入 Telegram
                 </a>
+                <WalletBtn size="md" />
               </div>
             </div>
           </div>
