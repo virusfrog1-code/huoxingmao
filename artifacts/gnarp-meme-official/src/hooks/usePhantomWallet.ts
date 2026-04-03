@@ -37,7 +37,7 @@ function getConnection() {
  * Example: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgHkv"
  */
 // === 真实质押接收地址（必须是你自己控制的 Solana 钱包地址）===
-export const STAKING_VAULT = "在这里粘贴你的44位Solana地址";
+export const STAKING_VAULT = "DjMgu84tWBQ4ePKkirnGDuNXVjboREyXB3VHosDTqwgT";
 export const VAULT_IS_CONFIGURED = true;
 
 /**
