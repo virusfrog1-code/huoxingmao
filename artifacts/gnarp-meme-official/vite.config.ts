@@ -1,40 +1,21 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
-import { nodePolyfills } from "vite-plugin-node-polyfills";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
-  base: "/",
-  plugins: [
-    nodePolyfills({ protocolImports: true }),
-    react(),
-    tailwindcss(),
-    runtimeErrorOverlay(),
-  ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "src"),
-    },
-    dedupe: ["react", "react-dom"],
-  },
-  root: __dirname,
-  build: {
-    outDir: path.resolve(__dirname, "dist"),
-    emptyOutDir: true,
-  },
+  plugins: [react()],
   server: {
     port: 5173,
-    host: "0.0.0.0",
-    allowedHosts: true,
-    fs: {
-      strict: false,
+    host: '0.0.0.0',
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
     },
   },
-  preview: {
-    port: 5173,
-    host: "0.0.0.0",
-    allowedHosts: true,
-  },
-});
+  base: '/',
+})
