@@ -1,6 +1,25 @@
 import { useState } from "react";
-import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight } from "lucide-react";
+import { TrendingUp, Zap, Users, Lock, ChevronRight, Coins, RefreshCcw, ArrowUpRight, Copy, CheckCheck } from "lucide-react";
 import { useStore, P2E_POOL_INITIAL } from "../store/useStore";
+
+const CA = "5EbMhNWHEvRMS2k7MEPXz9dtR6j1YyEvwY6qDGobpump";
+const PUMP_URL = `https://pump.fun/coin/${CA}`;
+
+function CopyCA() {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(CA).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+  return (
+    <button onClick={copy}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-neon-green/40 hover:bg-neon-green/5 transition-all group text-sm font-mono max-w-full overflow-hidden">
+      <span className="text-gray-400 truncate">{CA.slice(0, 20)}...{CA.slice(-8)}</span>
+      {copied
+        ? <CheckCheck size={14} className="text-neon-green shrink-0" />
+        : <Copy size={14} className="text-gray-500 group-hover:text-neon-green shrink-0 transition-colors" />}
+    </button>
+  );
+}
 
 /* ---- Price data ---- */
 const ALL_PRICE = Array.from({ length: 90 }, (_, i) => {
@@ -137,7 +156,7 @@ export default function TokenPage() {
             外星舞步挖矿 · 边玩边赚 · Token 飞向月球
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <a href="https://pump.fun" target="_blank" rel="noopener noreferrer"
+            <a href={PUMP_URL} target="_blank" rel="noopener noreferrer"
               className="group relative inline-flex items-center gap-2.5 bg-neon-green text-black font-black text-lg px-10 py-4 rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-[0_0_30px_rgba(0,232,122,0.35)]">
               🚀 Buy on Pump.fun
               <ArrowUpRight size={18} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -145,6 +164,11 @@ export default function TokenPage() {
             <a href="#staking" className="inline-flex items-center gap-2.5 border border-neon-green/30 text-neon-green font-bold text-base px-8 py-4 rounded-2xl hover:bg-neon-green/8 transition-all">
               <Coins size={17} /> 质押赚收益
             </a>
+          </div>
+          {/* Contract address */}
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <span className="text-xs text-gray-500 uppercase tracking-widest">合约地址 · Contract Address</span>
+            <CopyCA />
           </div>
         </div>
       </section>
@@ -187,9 +211,15 @@ export default function TokenPage() {
             </div>
           </div>
           <div className="h-52"><MiniChart data={rangeData[range]} /></div>
-          <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-            <span>Contract: <span className="text-gray-400 font-mono">GNARP...pump</span></span>
-            <span>DEX: Raydium · Pump.fun</span>
+          <div className="mt-3 flex items-center justify-between text-xs text-gray-500 flex-wrap gap-2">
+            <span className="flex items-center gap-1.5">
+              Contract:
+              <a href={`https://solscan.io/token/${CA}`} target="_blank" rel="noopener noreferrer"
+                className="text-neon-green/80 font-mono hover:text-neon-green transition-colors">
+                {CA.slice(0, 10)}...{CA.slice(-6)}
+              </a>
+            </span>
+            <span>DEX: <a href={PUMP_URL} target="_blank" rel="noopener noreferrer" className="text-neon-green/80 hover:text-neon-green transition-colors">Pump.fun</a> · Raydium</span>
           </div>
         </div>
       </section>
@@ -313,10 +343,13 @@ export default function TokenPage() {
             </div>
             <div className="mt-5 p-4 rounded-xl bg-white/4 border border-white/8 flex items-start gap-3">
               <Lock size={14} className="text-yellow-400 mt-0.5 flex-shrink-0" />
-              <span className="text-xs text-gray-400">
-                开发者无任何保留份额 · 无私募 · 无团队解锁 · 100% 公平发行 ·
-                合约已在 Pump.fun 公开验证 · 流动性永久锁定
-              </span>
+              <div className="text-xs text-gray-400 space-y-1">
+                <div>开发者无任何保留份额 · 无私募 · 无团队解锁 · 100% 公平发行 · 流动性永久锁定</div>
+                <div className="font-mono text-gray-500 break-all">
+                  合约: <a href={`https://solscan.io/token/${CA}`} target="_blank" rel="noopener noreferrer"
+                    className="text-neon-green/70 hover:text-neon-green transition-colors">{CA}</a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -455,7 +488,7 @@ export default function TokenPage() {
               <h3 className="text-3xl font-black gradient-text mb-3">准备好了吗？</h3>
               <p className="text-gray-400 mb-8">加入外星猫奴大军，一起把 $GNARP 送上月球 🌙</p>
               <div className="flex justify-center gap-4 flex-wrap">
-                <a href="https://pump.fun" target="_blank" rel="noopener noreferrer"
+                <a href={PUMP_URL} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 bg-neon-green text-black font-black text-base px-10 py-4 rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-[0_0_30px_rgba(0,232,122,0.3)]">
                   🚀 立即购买 on Pump.fun <RefreshCcw size={15} />
                 </a>
